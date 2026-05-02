@@ -1398,27 +1398,36 @@ async function doLogin() {
   const name = email.split('@')[0].replace(/[._-]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
   state.user = { email, name };
 
+  // ── Afficher l'app immédiatement, sans attendre Supabase
   document.getElementById('login').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
-
   document.getElementById('userName').textContent = name;
   document.getElementById('userAvatar').textContent = name.split(' ').map(w=>w[0]).slice(0,2).join('');
 
   // Afficher le bouton Coach uniquement pour les coachs
   const coachBtn = document.getElementById('coachTabBtn');
-  if (coachBtn && isCoach(email)) {
-    coachBtn.style.display = '';
-  }
+  if (coachBtn && isCoach(email)) coachBtn.style.display = '';
 
-  // ── Supabase : créer ou retrouver l'utilisateur et charger sa progression
+  // ── Charger la progression depuis Supabase (en arrière-plan, sans bloquer)
   if (sbReady()) {
     try {
-      await sb.from('users').upsert({ email, name }, { onConflict: 'email', ignoreDuplicates: true });
-      const { data: prog } = await sb.from('progress').select('module_id,completed').eq('user_email', email);
-      if (prog) prog.forEach(r => { if (r.completed) { state.completedModules.add(r.module_id); state.submittedModules.add(r.module_id); } });
-      const { data: ans } = await sb.from('answers').select('module_id,question_index,answer_text').eq('user_email', email);
-      if (ans) ans.forEach(r => { if (!state.answers[r.module_id]) state.answers[r.module_id] = {}; state.answers[r.module_id][r.question_index] = r.answer_text; });
-    } catch(e) { console.error('Supabase login error:', e); }
+      await Promise.all([
+        sb.from('users').upsert({ email, name }, { onConflict: 'email', ignoreDuplicates: true }),
+      ]);
+      const [progRes, ansRes] = await Promise.all([
+        sb.from('progress').select('module_id,completed').eq('user_email', email),
+        sb.from('answers').select('module_id,question_index,answer_text').eq('user_email', email),
+      ]);
+      if (progRes.data) progRes.data.forEach(r => {
+        if (r.completed) { state.completedModules.add(r.module_id); state.submittedModules.add(r.module_id); }
+      });
+      if (ansRes.data) ansRes.data.forEach(r => {
+        if (!state.answers[r.module_id]) state.answers[r.module_id] = {};
+        state.answers[r.module_id][r.question_index] = r.answer_text;
+      });
+    } catch(e) {
+      console.warn('Supabase indisponible — mode local activé', e);
+    }
   }
 
   // Reprendre au bon module si déjà commencé
@@ -1430,7 +1439,7 @@ async function doLogin() {
   updateProgress();
   buildNav();
   renderModule(state.currentModule);
-  renderCoachView();
+  // Ne pas appeler renderCoachView ici — elle sera appelée au clic sur Coach
 
   // Afficher la modale fiches si c'est la première connexion
   if (state.completedModules.size === 0) {
@@ -1898,6 +1907,7 @@ function setView(v) {
 
 // ─── COACH VIEW ───
 async function renderCoachView() {
+  try {
   const coachEl = document.getElementById('coachView');
   if (!coachEl) return;
 
@@ -2062,8 +2072,10 @@ async function renderCoachView() {
   // Stocker les réponses pour le modal
   window._coachAnswers = {};
   students.forEach(s => { window._coachAnswers[s.email] = s.answers; });
+  } catch(e) {
+    console.error('Erreur vue coach:', e);
+  }
 }
-
 function showStudentAnswers(email) {
   const answers = window._coachAnswers[email] || [];
   if (answers.length === 0) return;
