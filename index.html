@@ -1227,8 +1227,8 @@ tr:hover td { background: var(--off-white); }
     // CONFIGURATION SUPABASE — Remplace ces deux valeurs par les tiennes
     // Supabase → Settings → API → Project URL et anon public key
     // ═══════════════════════════════════════════════════════════════
-    const SUPABASE_URL = 'REMPLACE_PAR_TA_PROJECT_URL';
-    const SUPABASE_KEY = 'REMPLACE_PAR_TA_ANON_KEY';
+    const SUPABASE_URL = 'https://lumkeksqyfowqbkcmncc.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1bWtla3NxeWZvd3Fia2NtbmNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNzM2NTEsImV4cCI6MjA5Mjg0OTY1MX0.k8oBgnpvZ3zK8kzb2ZZGikzX7WTOYknn8KVj534JfK4';
     const sb = (SUPABASE_URL.startsWith('http'))
       ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
       : null;
@@ -1897,108 +1897,221 @@ function setView(v) {
 }
 
 // ─── COACH VIEW ───
-function renderCoachView() {
-  const students = [
-    {name:'Sophie Bernaud', email:'sophie.b@email.com', progress:2, status:'En cours', lastActivity:'Il y a 2h'},
-    {name:'Thomas Nguyen', email:'thomas.n@email.com', progress:5, status:'Exercice soumis', lastActivity:'Il y a 1j'},
-    {name:'Amina Diallo', email:'amina.d@email.com', progress:9, status:'Terminé', lastActivity:'Il y a 3j'},
-    {name:'Lucas Martin', email:'lucas.m@email.com', progress:0, status:'Pas commencé', lastActivity:'—'},
-    {name:'Chloé Petit', email:'chloe.p@email.com', progress:3, status:'En cours', lastActivity:'Il y a 5h'},
-    {name:'Karim Bensaid', email:'karim.b@email.com', progress:7, status:'Exercice soumis', lastActivity:'Il y a 2j'},
-  ];
+async function renderCoachView() {
+  const coachEl = document.getElementById('coachView');
+  if (!coachEl) return;
 
-  // Add current user if logged in
-  if (state.user) {
-    students.unshift({
-      name: state.user.name,
-      email: state.user.email,
-      progress: state.completedModules.size,
-      status: state.completedModules.size === 9 ? 'Terminé' : state.completedModules.size > 0 ? 'En cours' : 'Pas commencé',
-      lastActivity: 'En ligne'
-    });
+  coachEl.innerHTML = `
+    <div class="coach-view" style="padding:36px">
+      <div style="text-align:center;padding:40px;color:var(--text-muted)">
+        <div style="font-size:24px;margin-bottom:8px">⏳</div>
+        Chargement des données...
+      </div>
+    </div>
+  `;
+
+  let students = [];
+  let allAnswers = [];
+
+  if (sbReady()) {
+    try {
+      // Charger tous les utilisateurs
+      const { data: users } = await sb.from('users').select('*').order('created_at', { ascending: false });
+
+      // Charger toute la progression
+      const { data: progress } = await sb.from('progress').select('*');
+
+      // Charger toutes les réponses
+      const { data: answers } = await sb.from('answers').select('*').order('submitted_at', { ascending: false });
+
+      allAnswers = answers || [];
+
+      if (users) {
+        students = users.map(u => {
+          const userProgress = (progress || []).filter(p => p.user_email === u.email && p.completed);
+          const userAnswers = (answers || []).filter(a => a.user_email === u.email);
+          const lastAnswer = userAnswers[0];
+          const completedCount = userProgress.length;
+
+          let status = 'Pas commencé';
+          if (completedCount === MODULES.length) status = 'Terminé';
+          else if (completedCount > 0) status = 'En cours';
+
+          return {
+            name: u.name || u.email.split('@')[0],
+            email: u.email,
+            progress: completedCount,
+            status,
+            lastActivity: lastAnswer
+              ? new Date(lastAnswer.submitted_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+              : '—',
+            answers: userAnswers,
+          };
+        });
+      }
+    } catch(e) {
+      console.error('Erreur chargement coach:', e);
+    }
+  } else {
+    // Données de démo si Supabase non configuré
+    students = [
+      { name: 'Sophie Bernaud', email: 'sophie.b@email.com', progress: 2, status: 'En cours', lastActivity: 'Il y a 2h', answers: [] },
+      { name: 'Thomas Nguyen', email: 'thomas.n@email.com', progress: 5, status: 'En cours', lastActivity: 'Il y a 1j', answers: [] },
+    ];
+  }
+
+  // Ajouter l'utilisateur courant si coach
+  if (state.user && isCoach(state.user.email) && !students.find(s => s.email === state.user.email)) {
+    students.unshift({ name: state.user.name, email: state.user.email, progress: state.completedModules.size, status: 'Coach', lastActivity: 'En ligne', answers: [] });
   }
 
   const total = students.length;
-  const done = students.filter(s=>s.status==='Terminé').length;
-  const inProgress = students.filter(s=>s.status==='En cours').length;
-  const waiting = students.filter(s=>s.status==='Exercice soumis').length;
+  const done = students.filter(s => s.status === 'Terminé').length;
+  const inProgress = students.filter(s => s.status === 'En cours').length;
+  const notStarted = students.filter(s => s.status === 'Pas commencé').length;
 
-  document.getElementById('coachView').innerHTML = `
-    <div class="coach-header">
-      <div class="coach-title">Tableau de bord</div>
-      <div class="filter-row">
-        <select class="filter-select">
-          <option>Tous les statuts</option>
-          <option>En cours</option>
-          <option>Exercice soumis</option>
-          <option>Terminé</option>
-        </select>
-        <select class="filter-select">
-          <option>Toutes les promos</option>
-        </select>
+  coachEl.innerHTML = `
+    <div style="padding:36px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px">
+        <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:22px;text-transform:uppercase;letter-spacing:0.03em;color:var(--navy)">
+          Tableau de bord coach
+        </div>
+        <button onclick="renderCoachView()" style="background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;color:var(--navy);font-family:'GopherDisplay',sans-serif">
+          ↻ Actualiser
+        </button>
       </div>
-    </div>
 
-    <div class="coach-stats">
-      <div class="stat-card">
-        <div class="stat-num">${total}</div>
-        <div class="stat-label">Alternants inscrits</div>
+      <!-- Stats -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px">
+        ${[
+          { num: total, label: 'Alternants inscrits', accent: false },
+          { num: inProgress, label: 'En cours', accent: false },
+          { num: done, label: 'Parcours terminés', accent: false },
+          { num: notStarted, label: 'Pas encore commencé', accent: true },
+        ].map(s => `
+          <div style="background:${s.accent ? 'var(--navy)' : 'white'};border:1px solid var(--border);border-radius:12px;padding:18px 20px">
+            <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:28px;color:${s.accent ? 'var(--cyan)' : 'var(--navy)'};margin-bottom:4px">${s.num}</div>
+            <div style="font-size:12px;color:${s.accent ? 'rgba(255,255,255,0.5)' : 'var(--text-muted)'}">${s.label}</div>
+          </div>
+        `).join('')}
       </div>
-      <div class="stat-card accent">
-        <div class="stat-num">${waiting}</div>
-        <div class="stat-label">Exercices à relire</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-num">${inProgress}</div>
-        <div class="stat-label">En cours</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-num">${done}</div>
-        <div class="stat-label">Parcours terminés</div>
-      </div>
-    </div>
 
-    <div class="coach-table-wrap">
-      <div class="coach-table-header">
-        <div class="coach-table-title">Tous les alternants</div>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Alternant</th>
-            <th>Progression</th>
-            <th>Statut</th>
-            <th>Dernière activité</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${students.map(s => {
-            const pct = (s.progress / 11 * 100).toFixed(0);
-            const badgeCls = s.status==='Terminé' ? 'badge-done' : s.status==='Exercice soumis' ? 'badge-waiting' : s.status==='En cours' ? 'badge-progress' : 'badge-todo';
-            return `<tr>
-              <td>
-                <div style="font-weight:500;margin-bottom:2px">${s.name}</div>
-                <div style="font-size:11px;color:var(--text-muted)">${s.email}</div>
-              </td>
-              <td>
-                <div style="display:flex;align-items:center;gap:10px">
-                  <div class="progress-mini">
-                    <div class="progress-mini-fill" style="width:${pct}%"></div>
+      <!-- Tableau -->
+      <div style="background:white;border:1px solid var(--border);border-radius:12px;overflow:hidden">
+        <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:0.08em;color:var(--navy)">
+            Tous les alternants (${total})
+          </div>
+        </div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr>
+              ${['Alternant','Progression','Statut','Dernière activité','Réponses'].map(h =>
+                `<th style="text-align:left;padding:10px 16px;font-family:'Gopher',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted);background:var(--off-white);border-bottom:1px solid var(--border)">${h}</th>`
+              ).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${students.length === 0 ? `
+              <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted);font-size:14px">
+                Aucun alternant inscrit pour l'instant
+              </td></tr>
+            ` : students.map(s => {
+              const pct = Math.round(s.progress / MODULES.length * 100);
+              const badgeStyle = s.status === 'Terminé'
+                ? 'background:#e0f9f4;color:#00b894'
+                : s.status === 'En cours'
+                ? 'background:var(--cyan-light);color:var(--navy)'
+                : s.status === 'Coach'
+                ? 'background:var(--navy);color:var(--cyan)'
+                : 'background:var(--gray-light);color:var(--text-muted)';
+
+              return `<tr style="border-bottom:1px solid var(--gray-light)">
+                <td style="padding:12px 16px">
+                  <div style="font-weight:500;margin-bottom:2px;color:var(--navy)">${s.name}</div>
+                  <div style="font-size:11px;color:var(--text-muted)">${s.email}</div>
+                </td>
+                <td style="padding:12px 16px">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div style="height:5px;background:var(--gray-light);border-radius:3px;width:100px;overflow:hidden">
+                      <div style="height:100%;background:var(--cyan);border-radius:3px;width:${pct}%"></div>
+                    </div>
+                    <span style="font-size:12px;color:var(--text-muted)">${s.progress}/${MODULES.length}</span>
                   </div>
-                  <span style="font-size:12px;color:var(--text-muted)">${s.progress}/9</span>
-                </div>
-              </td>
-              <td><span class="status-badge ${badgeCls}">${s.status}</span></td>
-              <td style="font-size:12px;color:var(--text-muted)">${s.lastActivity}</td>
-              <td><button class="btn-voir" onclick="alert('Fonctionnalit\u00e9 disponible en version connect\u00e9e')">Voir réponses</button></td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
+                </td>
+                <td style="padding:12px 16px">
+                  <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;${badgeStyle}">${s.status}</span>
+                </td>
+                <td style="padding:12px 16px;font-size:12px;color:var(--text-muted)">${s.lastActivity}</td>
+                <td style="padding:12px 16px">
+                  ${s.answers && s.answers.length > 0
+                    ? `<button onclick="showStudentAnswers('${s.email}')" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--navy);cursor:pointer;font-family:'GopherDisplay',sans-serif">
+                        Voir (${[...new Set(s.answers.map(a => a.module_id))].length} modules)
+                      </button>`
+                    : `<span style="font-size:12px;color:var(--text-muted)">—</span>`
+                  }
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
     </div>
   `;
+
+  // Stocker les réponses pour le modal
+  window._coachAnswers = {};
+  students.forEach(s => { window._coachAnswers[s.email] = s.answers; });
 }
-</script>
-</body>
-</html>
+
+function showStudentAnswers(email) {
+  const answers = window._coachAnswers[email] || [];
+  if (answers.length === 0) return;
+
+  // Grouper par module
+  const byModule = {};
+  answers.forEach(a => {
+    if (!byModule[a.module_id]) byModule[a.module_id] = [];
+    byModule[a.module_id].push(a);
+  });
+
+  const html = Object.keys(byModule).sort((a,b) => a-b).map(moduleId => {
+    const m = MODULES[moduleId];
+    if (!m) return '';
+    const moduleAnswers = byModule[moduleId].sort((a,b) => a.question_index - b.question_index);
+    return `
+      <div style="margin-bottom:20px">
+        <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;color:var(--navy);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">
+          ${m.emoji} Module #${m.num} — ${m.title}
+        </div>
+        ${moduleAnswers.map(a => {
+          const q = m.questions[a.question_index];
+          return `
+            <div style="margin-bottom:12px">
+              <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px">${q ? q.q : 'Question ' + (a.question_index+1)}</div>
+              <div style="background:var(--off-white);border-radius:6px;padding:10px 12px;font-size:13px;color:var(--navy);line-height:1.5;white-space:pre-wrap">${a.answer_text || '—'}</div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }).join('');
+
+  // Afficher dans une modale simple
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(13,21,92,0.7);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:40px 24px;overflow-y:auto';
+  overlay.innerHTML = `
+    <div style="background:white;border-radius:16px;max-width:680px;width:100%;padding:28px;box-shadow:0 24px 60px rgba(13,21,92,0.25)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+        <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:18px;text-transform:uppercase;color:var(--navy)">
+          Réponses de ${email}
+        </div>
+        <button onclick="this.closest('[style*=fixed]').remove()" style="background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;color:var(--navy)">✕ Fermer</button>
+      </div>
+      ${html}
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+>
