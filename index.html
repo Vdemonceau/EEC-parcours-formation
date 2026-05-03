@@ -639,11 +639,12 @@ async function renderCoachView() {
       <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:22px;text-transform:uppercase;color:var(--navy)">Tableau de bord</div>
       <button onclick="renderCoachView()" style="background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;color:var(--navy);font-family:'GopherDisplay',sans-serif">↻ Actualiser</button>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px">
-      ${[['Inscrits',total,false],['En cours',inProgress,false],['Terminés',done,false],['Pas commencé',notStarted,true]].map(([l,n,acc])=>`
-        <div style="background:${acc?'var(--navy)':'white'};border:1px solid var(--border);border-radius:12px;padding:18px 20px">
+    <div id="coachStatsGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px">
+      ${[['Inscrits',total,false,'all'],['En cours',inProgress,false,'En cours'],['Terminés',done,false,'Terminé'],['Pas commencé',notStarted,true,'Pas commencé']].map(([l,n,acc,f])=>`
+        <div onclick="filterCoachTable('${f}')" style="background:${acc?'var(--navy)':'white'};border:2px solid ${acc?'var(--cyan)':'var(--border)'};border-radius:12px;padding:18px 20px;cursor:pointer;transition:transform .15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
           <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:28px;color:${acc?'var(--cyan)':'var(--navy)'};margin-bottom:4px">${n}</div>
           <div style="font-size:12px;color:${acc?'rgba(255,255,255,.5)':'var(--text-muted)'}">Alternants ${l}</div>
+          <div style="font-size:10px;margin-top:4px;color:${acc?'rgba(255,255,255,.25)':'#c0c4d8'}">↑ Filtrer</div>
         </div>`).join('')}
     </div>
     <div style="background:white;border:1px solid var(--border);border-radius:12px;overflow:hidden">
@@ -652,11 +653,11 @@ async function renderCoachView() {
       </div>
       <table style="width:100%;border-collapse:collapse">
         <thead><tr>${['Alternant','Progression','Statut','Dernière activité','Actions'].map(h=>`<th style="text-align:left;padding:10px 16px;font-family:'Gopher',sans-serif;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);background:var(--off-white);border-bottom:1px solid var(--border)">${h}</th>`).join('')}</tr></thead>
-        <tbody>
+        <tbody id="coachTableBody">
         ${total===0?`<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-muted)">Aucun alternant inscrit pour l'instant</td></tr>`:students.map(s=>{
           const pct=Math.round(s.progress/MODULES.length*100);
           const bc=s.status==='Terminé'?'background:#e0f9f4;color:#00b894':s.status==='En cours'?'background:var(--cyan-light);color:var(--navy)':'background:var(--gray-light);color:var(--text-muted)';
-          return `<tr style="border-bottom:1px solid var(--gray-light)">
+          return `<tr data-status="${s.status}" style="border-bottom:1px solid var(--gray-light)">
             <td style="padding:12px 16px"><div style="font-weight:500;color:var(--navy);margin-bottom:2px">${s.name}</div><div style="font-size:11px;color:var(--text-muted)">${s.email}</div></td>
             <td style="padding:12px 16px"><div style="display:flex;align-items:center;gap:10px"><div style="height:5px;background:var(--gray-light);border-radius:3px;width:100px;overflow:hidden"><div style="height:100%;background:var(--cyan);border-radius:3px;width:${pct}%"></div></div><span style="font-size:12px;color:var(--text-muted)">${s.progress}/${MODULES.length}</span></div></td>
             <td style="padding:12px 16px"><span style="display:inline-flex;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;${bc}">${s.status}</span></td>
@@ -669,6 +670,39 @@ async function renderCoachView() {
     </div>`;
 
   window._coachStudents = students;
+}
+
+function filterCoachTable(filter) {
+  const rows = document.querySelectorAll('#coachTableBody tr[data-status]');
+  rows.forEach(row => {
+    if (filter === 'all' || row.dataset.status === filter) {
+      row.style.display = '';
+    } else {
+      row.style.display = 'none';
+    }
+  });
+  // Mettre en évidence la carte active
+  const cards = document.querySelectorAll('#coachStatsGrid > div');
+  cards.forEach(card => {
+    card.style.outline = card.onclick && card.onclick.toString().includes(filter) ? '2px solid var(--cyan)' : '';
+  });
+  // Mettre à jour le titre du tableau
+  const title = document.getElementById('coachTableTitle');
+  if (title) {
+    title.textContent = filter === 'all'
+      ? 'Tous les alternants (' + rows.length + ')'
+      : filter + ' (' + [...rows].filter(r => r.style.display !== 'none').length + ')';
+  }
+}
+
+function filterCoachTable(filter) {
+  const rows = document.querySelectorAll('#coachTableBody tr[data-status]');
+  let count = 0;
+  rows.forEach(r => {
+    const show = filter === 'all' || r.getAttribute('data-status') === filter;
+    r.style.display = show ? '' : 'none';
+    if (show) count++;
+  });
 }
 
 function showAnswers(email) {
