@@ -194,6 +194,144 @@ textarea:disabled{opacity:.7;cursor:default}
 .modal-footer{padding:0 28px 24px;display:flex;justify-content:flex-end}
 .modal-cta{background:var(--navy);color:white;border:none;border-radius:8px;padding:12px 28px;font-family:'Gopher',sans-serif;font-weight:700;font-size:12px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
 .modal-cta:hover{background:var(--navy-mid)}
+
+/* ═══════════════════════════════════════
+   RESPONSIVE MOBILE — max-width: 768px
+   Desktop strictement identique au-dessus
+═══════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* ── LAYOUT ── */
+  .app { flex-direction: column; }
+
+  /* ── SIDEBAR CACHÉE PAR DÉFAUT ── */
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0;
+    width: 280px;
+    height: 100vh;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.28s ease;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.3);
+  }
+
+  .sidebar.open { transform: translateX(0); }
+
+  /* Overlay sombre quand sidebar ouverte */
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 49;
+  }
+  .sidebar-overlay.open { display: block; }
+
+  /* ── TOPBAR MOBILE ── */
+  .topbar {
+    padding: 10px 16px;
+    gap: 8px;
+  }
+
+  /* Bouton hamburger */
+  .hamburger-btn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: var(--navy);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-right: 8px;
+  }
+
+  .hamburger-btn svg { display: block; }
+
+  .breadcrumb { font-size: 12px; flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .view-tabs { flex-shrink: 0; }
+  .view-tab { padding: 5px 10px; font-size: 11px; }
+
+  /* ── MAIN ── */
+  .main { width: 100%; min-width: 0; }
+
+  /* ── CONTENU MODULE ── */
+  .module-content { padding: 20px 16px; max-width: 100%; }
+
+  /* ── HEADER MODULE ── */
+  .module-title { font-size: 22px; }
+  .module-subtitle { font-size: 14px; }
+  .module-meta { font-size: 12px; gap: 10px; flex-wrap: wrap; }
+
+  /* ── STEP TABS ── */
+  .step-tabs { margin-bottom: 16px; }
+  .step-tab { padding: 10px 6px; font-size: 11px; }
+
+  /* ── CARD ── */
+  .card { border-radius: 10px; margin-bottom: 12px; }
+  .card-header { padding: 12px 16px; }
+  .card-body { padding: 14px 16px; }
+  .card-title { font-size: 13px; }
+
+  /* ── VIDÉO ── */
+  .video-container { border-radius: 8px; }
+
+  /* ── SLIDES ── */
+  .slide-body { padding: 20px 18px; min-height: 200px; }
+  .slide-heading { font-size: 15px; margin-bottom: 12px; }
+  .slide-li { font-size: 13px; }
+  .slides-chrome { padding: 6px 12px; }
+  .chrome-title { font-size: 11px; }
+
+  /* ── EXERCISE ── */
+  .q-label { font-size: 12px; }
+  .q-hint { font-size: 11px; }
+  textarea { font-size: 14px; min-height: 70px; }
+  .submit-row { flex-direction: column; gap: 10px; align-items: flex-start; }
+  .submit-btn { width: 100%; text-align: center; padding: 13px; font-size: 13px; }
+  .save-hint { font-size: 11px; }
+
+  /* ── FICHES DE POSTE ── */
+  .fiches-grid { grid-template-columns: 1fr; gap: 8px; }
+  .modal-grid { grid-template-columns: 1fr; gap: 8px; }
+  .modal-box { margin: 16px; max-height: 90vh; overflow-y: auto; }
+
+  /* ── NEXT ROW ── */
+  .next-row {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+    padding-bottom: 32px;
+  }
+  .next-btn { width: 100%; text-align: center; padding: 14px; font-size: 13px; }
+  .next-label { font-size: 13px; }
+
+  /* ── COMPLETION BANNER ── */
+  .completion-banner { padding: 18px 20px; }
+  .completion-text h3 { font-size: 14px; }
+
+  /* ── VUE COACH ── */
+  #coachView { padding: 16px !important; }
+  #coachStatsGrid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+
+  /* Tableau coach en scroll horizontal */
+  .coach-table-wrap { overflow-x: auto; }
+  table { min-width: 560px; }
+
+  /* ── LOGIN ── */
+  .login-logo { width: 120px; }
+  .login-title { font-size: 12px; }
+  .login-subtitle { font-size: 14px; margin-bottom: 32px; }
+  .login-input { padding: 13px 14px; font-size: 15px; }
+  .login-btn { padding: 13px; font-size: 14px; }
+}
+
+/* Hamburger caché sur desktop */
+.hamburger-btn { display: none; }
+
 </style>
 </head>
 <body>
@@ -274,6 +412,13 @@ textarea:disabled{opacity:.7;cursor:default}
 
   <main class="main">
     <div class="topbar">
+      <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Menu">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <rect x="1" y="3" width="16" height="2" rx="1" fill="white"/>
+          <rect x="1" y="8" width="16" height="2" rx="1" fill="white"/>
+          <rect x="1" y="13" width="16" height="2" rx="1" fill="white"/>
+        </svg>
+      </button>
       <div class="breadcrumb" id="breadcrumb">Parcours entretiens &nbsp;›&nbsp; <strong id="breadcrumbTitle">—</strong></div>
       <div class="view-tabs">
         <button class="view-tab active" onclick="setView('student')">👤 Élève</button>
@@ -386,6 +531,8 @@ function buildNav() {
 }
 
 function navClick(i) {
+  // Fermer sidebar sur mobile après sélection
+  if (window.innerWidth <= 768) closeSidebar();
   const maxUnlocked = state.completedModules.size > 0 ? Math.max(...state.completedModules) + 1 : 0;
   if (i > maxUnlocked && !state.completedModules.has(i)) return;
   state.currentModule = i;
@@ -725,5 +872,9 @@ function showAnswers(email) {
   document.body.appendChild(ov);
 }
 </script>
+
+<!-- Overlay sidebar mobile -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
 </body>
 </html>
