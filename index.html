@@ -764,8 +764,9 @@ function renderExercise(idx,m) {
   if (idx===0) {
     return `<div class="card"><div class="card-header"><div class="card-icon icon-tip">✅</div><div><div class="card-title">Module terminé</div><div class="card-sub">Tu peux passer au module suivant</div></div></div><div class="card-body"><div class="tip-text">Tu as vu la vidéo et parcouru les slides. Ce module n'a pas d'exercice à soumettre. Passe au module <strong>#1</strong> pour choisir ta fiche de poste.</div></div></div>${renderTip(m)}`;
   }
-  const topBlock = idx===1 && !submitted ? renderFichesBlock()
-    : (!submitted ? `<div class="exercise-intro">💼 Rappel : travaille avec la fiche de poste choisie au module #1. Adapte tes réponses à cette fiche.</div>` : '');
+  const modulesAvecFiche = [1,2,3,4,5,8];
+  topBlock = idx===1 && !submitted ? renderFichesBlock()
+    : (modulesAvecFiche.includes(idx) && !submitted ? `<div class="exercise-intro">💼 Rappel : travaille avec la fiche de poste choisie au module #1. Adapte tes réponses à cette fiche.</div>` : '');
   return `
     <div class="card">
       <div class="card-header"><div class="card-icon icon-ex">✍️</div><div><div class="card-title">Exercice d'application</div><div class="card-sub">${submitted ? 'Exercice soumis — en attente du feedback de ton coach' : 'Réponds aux questions — tes réponses sont transmises à ton coach'}</div></div></div>
