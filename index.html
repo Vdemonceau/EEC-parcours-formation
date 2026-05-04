@@ -332,6 +332,31 @@ textarea:disabled{opacity:.7;cursor:default}
 /* Hamburger caché sur desktop */
 .hamburger-btn { display: none; }
 
+
+/* ─── MAGIC LINK CONFIRM ─── */
+.magic-confirm {
+  background: var(--cyan-light);
+  border: 1.5px solid var(--cyan);
+  border-radius: 12px;
+  padding: 24px 28px;
+  text-align: center;
+  width: 100%;
+  animation: modalIn .25s ease;
+}
+.magic-confirm-icon { font-size: 36px; margin-bottom: 12px; }
+.magic-confirm-title {
+  font-family: 'Gopher', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  text-transform: uppercase;
+  color: var(--navy);
+  margin-bottom: 8px;
+  letter-spacing: .05em;
+}
+.magic-confirm-text { font-size: 14px; color: var(--text-muted); line-height: 1.6; }
+.magic-confirm-email { font-weight: 600; color: var(--navy); }
+.magic-confirm-hint { font-size: 12px; color: var(--gray); margin-top: 12px; font-style: italic; }
+
 </style>
 </head>
 <body>
@@ -463,6 +488,72 @@ let state = {
   answers: {}
 };
 
+// ── MAGIC LINK : détecter la redirection Supabase au chargement
+(async function() {
+  // Supabase met le token dans le hash de l'URL après le clic sur le magic link
+  const hash = window.location.hash;
+  if (hash && hash.includes('access_token')) {
+    try {
+      // Supabase Auth gère automatiquement le hash
+      const { data, error } = await sb.auth.getSession();
+      if (data && data.session && data.session.user) {
+        const email = data.session.user.email;
+        if (isCoach(email)) {
+          // Nettoyer l'URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+          // Connecter directement en tant que coach
+          autoLoginCoach(email);
+        }
+      }
+    } catch(e) { console.warn('Magic link init error:', e); }
+  }
+})();
+
+function showMagicLinkConfirm(email) {
+  const form = document.querySelector('.login-form');
+  if (!form) return;
+  form.innerHTML = `
+    <div class="magic-confirm">
+      <div class="magic-confirm-icon">📬</div>
+      <div class="magic-confirm-title">Lien envoyé !</div>
+      <div class="magic-confirm-text">
+        Un lien de connexion a été envoyé à<br>
+        <span class="magic-confirm-email">${email}</span>
+      </div>
+      <div class="magic-confirm-hint">Clique sur le lien dans l'email pour accéder à la vue coach.<br>Le lien est valable 1 heure.</div>
+    </div>
+  `;
+}
+
+async function autoLoginCoach(email) {
+  const name = email.split('@')[0].replace(/[._-]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+  state.user = { email, name };
+  document.getElementById('login').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('userName').textContent = name;
+  document.getElementById('userAvatar').textContent = name.split(' ').map(w=>w[0]||'').slice(0,2).join('').toUpperCase();
+  document.getElementById('coachTabBtn').style.display = '';
+  // Charger progression
+  try {
+    const [progRes, ansRes] = await Promise.all([
+      sb.from('progress').select('module_id,completed').eq('user_email', email),
+      sb.from('answers').select('module_id,question_index,answer_text').eq('user_email', email),
+    ]);
+    if (progRes.data) progRes.data.forEach(r => {
+      if (r.completed) { state.completedModules.add(Number(r.module_id)); state.submittedModules.add(Number(r.module_id)); }
+    });
+    if (ansRes.data) ansRes.data.forEach(r => {
+      if (!state.answers[r.module_id]) state.answers[r.module_id] = {};
+      state.answers[r.module_id][r.question_index] = r.answer_text;
+    });
+  } catch(e) { console.warn('Supabase load:', e); }
+  updateProgress();
+  buildNav();
+  renderModule(state.currentModule);
+  // Aller directement sur la vue coach
+  setView('coach');
+}
+
 // ── LOGIN
 async function doLogin() {
   const email = document.getElementById('loginEmail').value.trim();
@@ -473,6 +564,27 @@ async function doLogin() {
   const btn = document.getElementById('loginBtn');
   btn.disabled = true;
   btn.textContent = 'Connexion...';
+
+  // ── COACHS : envoyer un magic link par email
+  if (isCoach(email)) {
+    try {
+      const redirectUrl = window.location.origin + window.location.pathname;
+      const { error } = await sb.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: redirectUrl }
+      });
+      if (error) throw error;
+      btn.disabled = false;
+      btn.textContent = 'ACCÉDER À MON PARCOURS →';
+      showMagicLinkConfirm(email);
+      return;
+    } catch(e) {
+      console.warn('Magic link error:', e.message);
+      // Continuer normalement en cas d'erreur
+      btn.disabled = false;
+      btn.textContent = 'ACCÉDER À MON PARCOURS →';
+    }
+  }
 
   const name = email.split('@')[0].replace(/[._-]/g,' ').replace(/\w/g,c=>c.toUpperCase());
   state.user = { email, name };
