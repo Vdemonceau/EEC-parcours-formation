@@ -1080,7 +1080,43 @@ function goNext(idx) {
     state.currentStep[idx+1]=1;
     buildNav();
     renderModule(idx+1);
+  } else {
+    // Dernier module — marquer comme complété et afficher la page de fin
+    state.completedModules.add(idx);
+    state.submittedModules.add(idx);
+    updateProgress();
+    buildNav();
+    showParcoursFini();
   }
+}
+
+function showParcoursFini() {
+  const el = document.getElementById('studentView');
+  el.innerHTML = `
+    <div style="text-align:center;padding:60px 40px;max-width:600px;margin:0 auto">
+      <div style="font-size:64px;margin-bottom:24px">🎉</div>
+      <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:28px;text-transform:uppercase;color:var(--navy);margin-bottom:12px;letter-spacing:.03em">
+        Parcours terminé !
+      </div>
+      <div style="font-size:16px;color:var(--text-muted);line-height:1.7;margin-bottom:32px">
+        Félicitations — tu as complété les ${MODULES.length} modules du parcours de préparation aux entretiens.<br>
+        Ton coach a reçu toutes tes réponses et reviendra vers toi avec un feedback.
+      </div>
+      <div style="background:var(--cyan-light);border:1.5px solid var(--cyan);border-radius:var(--radius-lg);padding:24px 28px;text-align:left;margin-bottom:32px">
+        <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--navy);margin-bottom:12px">
+          Rappel — Avant ta mise en situation
+        </div>
+        <div style="font-size:14px;color:var(--text-muted);line-height:1.6">
+          Relis tes réponses aux modules clés. Entraîne-toi à voix haute. Arrive 10 min en avance.
+          Ton coach est disponible pour toute question avant l'entretien.
+        </div>
+      </div>
+      <button onclick="setView('student');renderModule(0)" style="background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:10px 22px;font-family:'GopherDisplay',sans-serif;font-size:14px;color:var(--navy);cursor:pointer">
+        ← Revoir un module
+      </button>
+    </div>
+  `;
+  document.getElementById('breadcrumbTitle').textContent = 'Parcours terminé';
 }
 
 // ── VUE
