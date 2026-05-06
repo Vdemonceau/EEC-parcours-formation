@@ -787,11 +787,12 @@ async function renderCoachView(){
             <td style="padding:12px 16px"><div style="display:flex;align-items:center;gap:10px"><div style="height:5px;background:var(--gray-light);border-radius:3px;width:100px;overflow:hidden"><div style="height:100%;background:var(--cyan);border-radius:3px;width:${pct}%"></div></div><span style="font-size:12px;color:var(--text-muted)">${s.progress}/${MODULES.length}</span></div></td>
             <td style="padding:12px 16px"><span style="display:inline-flex;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;${bc}">${s.status}</span></td>
             <td style="padding:12px 16px;font-size:12px;color:var(--text-muted)">${s.lastActivity}</td>
-            <td style="padding:12px 16px"><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-  ${s.answers&&s.answers.length>0?`<button onclick="showAnswers('${s.email}')" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--navy);cursor:pointer">Voir (${[...new Set(s.answers.map(a=>a.module_id))].length})</button>`:''}
-  <button onclick="resetStudent('${s.email}','${s.name}')" style="background:transparent;border:1px solid #f0d080;border-radius:6px;padding:4px 10px;font-size:12px;color:#b07800;cursor:pointer">&#8635; Reset</button>
-  <button onclick="deleteStudent('${s.email}','${s.name}')" style="background:transparent;border:1px solid #ffd0d0;border-radius:6px;padding:4px 10px;font-size:12px;color:#c0392b;cursor:pointer">&#10005;</button>
-</div></td>
+            <td style="padding:12px 16px">
+  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+    ${s.answers&&s.answers.length>0?`<button onclick="showAnswers('${s.email}')" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--navy);cursor:pointer">Voir (${[...new Set(s.answers.map(a=>a.module_id))].length} modules)</button>`:''}
+    <button onclick="showStudentActions('${s.email}','${s.name}')" style="background:var(--off-white);border:1.5px solid var(--border);border-radius:6px;padding:4px 12px;font-size:12px;color:var(--navy);cursor:pointer" title="Actions">&#8942;</button>
+  </div>
+</td>
           </tr>`;
         }).join('')}
         </tbody>
