@@ -490,8 +490,12 @@ function toggleFiche(id) {
 }
 
 function closeWelcomeModal() {
-  document.getElementById('welcomeModal').classList.add('hidden');
-  document.getElementById('ficheModal').classList.remove('hidden');
+  const wm = document.getElementById('welcomeModal');
+  const fm = document.getElementById('ficheModal');
+  wm.style.display = 'none';
+  wm.classList.add('hidden');
+  fm.classList.remove('hidden');
+  fm.style.display = '';
 }
 
 function closeWelcomeAndShowFiches() {
