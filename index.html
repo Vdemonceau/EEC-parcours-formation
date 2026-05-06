@@ -198,6 +198,14 @@ textarea:disabled{opacity:.7;cursor:default}
   .login-logo{width:120px}
   .login-subtitle{font-size:14px;margin-bottom:32px}
 }
+
+/* ─── MODALE BIENVENUE ─── */
+.welcome-steps {display:flex;flex-direction:column;gap:12px;margin-bottom:20px}
+.welcome-step {display:flex;align-items:flex-start;gap:12px;background:var(--off-white);border-radius:8px;padding:12px 14px}
+.welcome-step-icon {font-size:20px;flex-shrink:0;margin-top:1px}
+.welcome-step-text {font-size:13px;color:var(--text);line-height:1.5}
+.welcome-step-text strong {color:var(--navy);font-family:'Gopher',sans-serif;font-weight:700;text-transform:uppercase;font-size:11px;letter-spacing:.06em;display:block;margin-bottom:2px}
+
 </style>
 </head>
 <body>
@@ -213,35 +221,174 @@ textarea:disabled{opacity:.7;cursor:default}
     </div>
   </div>
 </div>
-<div id="ficheModal" class="modal-overlay hidden">
-  <div class="modal-box">
+<!-- MODALE BIENVENUE -->
+<div id="welcomeModal" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:600px">
+    <div class="modal-header" style="padding:28px 32px 24px">
+      <div class="modal-tag">&#127891; Bienvenue chez EEC</div>
+      <div class="modal-title" style="font-size:22px">Ton parcours de<br>pr&eacute;paration commence !</div>
+    </div>
+    <div class="modal-body" style="padding:24px 32px">
+      <div style="font-size:15px;color:var(--navy);line-height:1.7;margin-bottom:20px">
+        Ce parcours a &eacute;t&eacute; con&ccedil;u pour te pr&eacute;parer au mieux &agrave; tes entretiens d&apos;embauche. Il est compos&eacute; de <strong>11 modules progressifs</strong>, chacun con&ccedil;u pour renforcer une comp&eacute;tence cl&eacute;.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px">
+        <div style="display:flex;align-items:flex-start;gap:12px;background:var(--off-white);border-radius:10px;padding:14px 16px">
+          <div style="font-size:20px;flex-shrink:0">&#127916;</div>
+          <div>
+            <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);margin-bottom:3px">Regarde les vid&eacute;os</div>
+            <div style="font-size:13px;color:var(--text-muted);line-height:1.5">Chaque module commence par une vid&eacute;o de pr&eacute;sentation. Ne la saute pas &mdash; elle pose les bases de l&apos;exercice.</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:12px;background:var(--off-white);border-radius:10px;padding:14px 16px">
+          <div style="font-size:20px;flex-shrink:0">&#128209;</div>
+          <div>
+            <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);margin-bottom:3px">Lis les slides</div>
+            <div style="font-size:13px;color:var(--text-muted);line-height:1.5">Les slides r&eacute;sument les points cl&eacute;s. Prends le temps de les lire slide par slide avant de passer &agrave; l&apos;exercice.</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:12px;background:var(--off-white);border-radius:10px;padding:14px 16px">
+          <div style="font-size:20px;flex-shrink:0">&#9997;&#65039;</div>
+          <div>
+            <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);margin-bottom:3px">R&eacute;ponds aux exercices</div>
+            <div style="font-size:13px;color:var(--text-muted);line-height:1.5">Chaque module doit &ecirc;tre compl&eacute;t&eacute; avant d&apos;acc&eacute;der au suivant. Tes r&eacute;ponses sont transmises &agrave; ton coach qui te fera un retour personnalis&eacute;.</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:12px;background:var(--cyan-light);border:1px solid var(--cyan);border-radius:10px;padding:14px 16px">
+          <div style="font-size:20px;flex-shrink:0">&#128161;</div>
+          <div>
+            <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);margin-bottom:3px">Sois sp&eacute;cifique</div>
+            <div style="font-size:13px;color:var(--text-muted);line-height:1.5">Des r&eacute;ponses g&eacute;n&eacute;riques ne convainquent jamais un recruteur. Adapte chaque r&eacute;ponse &agrave; l&apos;entreprise et au poste que tu vises.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" style="padding:0 32px 28px">
+      <button class="modal-cta" style="width:100%;text-align:center;padding:14px" onclick="closeWelcomeModal()">
+        J&apos;AI COMPRIS &rarr; CHOISIR MA FICHE DE POSTE
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE BIENVENUE -->
+<div id="welcomeModal" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:600px">
     <div class="modal-header">
-      <div class="modal-tag">&#128206; Avant de commencer</div>
-      <div class="modal-title">T&eacute;l&eacute;charge ta fiche de poste</div>
+      <div class="modal-tag">&#127891; Bienvenue chez EEC</div>
+      <div class="modal-title">Ton parcours de<br>pr&eacute;paration aux entretiens</div>
     </div>
     <div class="modal-body">
-      <div class="modal-intro">Tout au long du parcours, tu travailleras avec <strong>une seule fiche de poste</strong>. T&eacute;l&eacute;charge-la maintenant et garde-la sous la main.</div>
-      <div class="modal-grid">
-        <a href="https://lumkeksqyfowqbkcmncc.supabase.co/storage/v1/object/public/fiches/comet.pdf.pdf" target="_blank" class="modal-fiche">
-          <div style="font-size:22px">&#129309;</div>
-          <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;color:var(--navy);text-align:center">Comet Meetings</div>
-          <div style="font-size:11px;color:var(--text-muted);text-align:center">Business Developer B2B</div>
-          <div style="font-size:10px;font-weight:600;color:var(--cyan);background:var(--cyan-light);padding:3px 8px;border-radius:20px">&darr; T&eacute;l&eacute;charger</div>
-        </a>
-        <a href="https://lumkeksqyfowqbkcmncc.supabase.co/storage/v1/object/public/fiches/fursac.pdf.pdf" target="_blank" class="modal-fiche">
-          <div style="font-size:22px">&#128084;</div>
-          <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;color:var(--navy);text-align:center">Fursac</div>
-          <div style="font-size:11px;color:var(--text-muted);text-align:center">Conseiller de vente</div>
-          <div style="font-size:10px;font-weight:600;color:var(--cyan);background:var(--cyan-light);padding:3px 8px;border-radius:20px">&darr; T&eacute;l&eacute;charger</div>
-        </a>
-        <a href="https://lumkeksqyfowqbkcmncc.supabase.co/storage/v1/object/public/fiches/Fiche_Alterfood.pdf" target="_blank" class="modal-fiche">
-          <div style="font-size:22px">&#127807;</div>
-          <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;color:var(--navy);text-align:center">Alterfood</div>
-          <div style="font-size:11px;color:var(--text-muted);text-align:center">Chef de secteur</div>
-          <div style="font-size:10px;font-weight:600;color:var(--cyan);background:var(--cyan-light);padding:3px 8px;border-radius:20px">&darr; T&eacute;l&eacute;charger</div>
-        </a>
+      <div class="modal-intro">Ce parcours a &eacute;t&eacute; con&ccedil;u pour te pr&eacute;parer concr&egrave;tement &agrave; tes entretiens d&apos;embauche. Il se compose de <strong>11 modules progressifs</strong> &mdash; suis-les dans l&apos;ordre pour en tirer le maximum.</div>
+      <div class="welcome-steps">
+        <div class="welcome-step">
+          <div class="welcome-step-icon">&#127916;</div>
+          <div class="welcome-step-text"><strong>1. Regarde la vid&eacute;o</strong>Chaque module commence par une vid&eacute;o courte. Prends le temps de la regarder en entier &mdash; elle pose les bases de ce que tu vas travailler.</div>
+        </div>
+        <div class="welcome-step">
+          <div class="welcome-step-icon">&#128209;</div>
+          <div class="welcome-step-text"><strong>2. Lis les slides</strong>Les slides r&eacute;sument les points cl&eacute;s du module. Navigue slide par slide, ne survole pas.</div>
+        </div>
+        <div class="welcome-step">
+          <div class="welcome-step-icon">&#9997;&#65039;</div>
+          <div class="welcome-step-text"><strong>3. R&eacute;ponds aux exercices</strong>C&apos;est la partie la plus importante. Prends le temps de r&eacute;fl&eacute;chir et d&apos;&eacute;crire des vraies r&eacute;ponses &mdash; tes coachs les liront et te donneront un retour personnalis&eacute;.</div>
+        </div>
+        <div class="welcome-step">
+          <div class="welcome-step-icon">&#128274;</div>
+          <div class="welcome-step-text"><strong>4. Modules s&eacute;quentiels</strong>Chaque module doit &ecirc;tre compl&eacute;t&eacute; avant d&apos;acc&eacute;der au suivant. Il n&apos;y a pas de raccourci &mdash; la progression est intentionnelle.</div>
+        </div>
       </div>
-      <div class="modal-warning">&#9888;&#65039; Tu ne pourras pas changer de fiche en cours de route. Lis les 3 avant de choisir.</div>
+      <div class="modal-warning">&#128170; Ce parcours te demande du s&eacute;rieux et de l&apos;investissement. Les alternants qui le compl&egrave;tent enti&egrave;rement r&eacute;ussissent leurs entretiens. Tu es capable de le faire.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-cta" onclick="closeWelcomeAndShowFiches()">C&apos;EST PARTI &rarr;</button>
+    </div>
+  </div>
+</div>
+
+
+<div id="ficheModal" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:640px">
+    <div class="modal-header">
+      <div class="modal-tag">&#128206; Choisis ta fiche de poste</div>
+      <div class="modal-title">3 postes disponibles &mdash; lis avant de choisir</div>
+    </div>
+    <div class="modal-body" style="padding:20px 28px">
+      <div class="modal-intro" style="margin-bottom:16px">Tu travailleras avec <strong>une seule fiche</strong> tout au long du parcours. D&eacute;couvre chaque poste ci-dessous avant de t&eacute;l&eacute;charger celui qui t&apos;int&eacute;resse le plus.</div>
+
+      <!-- Comet Meetings -->
+      <div style="border:1.5px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;background:white" onclick="toggleFiche('comet')">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="font-size:22px">&#129309;</div>
+            <div>
+              <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;color:var(--navy)">Comet Meetings</div>
+              <div style="font-size:12px;color:var(--text-muted)">Business Developer B2B &mdash; Startup Tech, Paris</div>
+            </div>
+          </div>
+          <div id="arrow-comet" style="color:var(--text-muted);transition:transform .2s;font-size:12px">&#9660;</div>
+        </div>
+        <div id="detail-comet" style="display:none;padding:0 16px 16px;border-top:1px solid var(--border);background:var(--off-white)">
+          <div style="font-size:13px;color:var(--navy);line-height:1.7;padding-top:12px">
+            <strong>L&apos;entreprise :</strong> Comet Meetings cr&eacute;e des espaces de r&eacute;union premium pour grands comptes (CAC40, SBF120). Fond&eacute;e en 2016, pr&eacute;sente &agrave; Paris, Bruxelles et Madrid.<br><br>
+            <strong>Tes missions :</strong> G&eacute;rer un portefeuille de 50 grands comptes, lancer des campagnes de prospection outbound, planifier des RDV strat&eacute;giques, assurer un suivi quotidien sur Salesforce.<br><br>
+            <strong>Profil recherch&eacute; :</strong> Bon relationnel, &agrave; l&apos;aise au t&eacute;l&eacute;phone, orient&eacute; objectifs, envie de monter en comp&eacute;tences sur les m&eacute;tiers Sales.
+          </div>
+          <a href="https://lumkeksqyfowqbkcmncc.supabase.co/storage/v1/object/public/fiches/comet.pdf.pdf" target="_blank" style="display:inline-flex;align-items:center;gap:6px;margin-top:12px;background:var(--navy);color:white;padding:8px 16px;border-radius:7px;font-family:'Gopher',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;text-decoration:none">
+            &darr; T&eacute;l&eacute;charger la fiche compl&egrave;te
+          </a>
+        </div>
+      </div>
+
+      <!-- Fursac -->
+      <div style="border:1.5px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;background:white" onclick="toggleFiche('fursac')">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="font-size:22px">&#128084;</div>
+            <div>
+              <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;color:var(--navy)">Fursac</div>
+              <div style="font-size:12px;color:var(--text-muted)">Conseiller de vente &mdash; Mode haut de gamme, boutique</div>
+            </div>
+          </div>
+          <div id="arrow-fursac" style="color:var(--text-muted);transition:transform .2s;font-size:12px">&#9660;</div>
+        </div>
+        <div id="detail-fursac" style="display:none;padding:0 16px 16px;border-top:1px solid var(--border);background:var(--off-white)">
+          <div style="font-size:13px;color:var(--navy);line-height:1.7;padding-top:12px">
+            <strong>L&apos;entreprise :</strong> Fursac est une marque de pr&ecirc;t-&agrave;-porter masculin haut de gamme, fond&eacute;e en 1973. 73 points de vente en France et en Europe, groupe SMCP.<br><br>
+            <strong>Tes missions :</strong> Accueillir et conseiller les clients, repr&eacute;senter l&apos;image de marque, contribuer au CA et aux KPIs, participer au bon fonctionnement du point de vente.<br><br>
+            <strong>Profil recherch&eacute; :</strong> Passionn&eacute;(e) par la mode et le pr&ecirc;t-&agrave;-porter, &agrave; l&apos;aise dans un environnement challengeant, capable de vendre un costume aussi bien que des sneakers.
+          </div>
+          <a href="https://lumkeksqyfowqbkcmncc.supabase.co/storage/v1/object/public/fiches/fursac.pdf.pdf" target="_blank" style="display:inline-flex;align-items:center;gap:6px;margin-top:12px;background:var(--navy);color:white;padding:8px 16px;border-radius:7px;font-family:'Gopher',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;text-decoration:none">
+            &darr; T&eacute;l&eacute;charger la fiche compl&egrave;te
+          </a>
+        </div>
+      </div>
+
+      <!-- Alterfood -->
+      <div style="border:1.5px solid var(--border);border-radius:10px;margin-bottom:16px;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;background:white" onclick="toggleFiche('alterfood')">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="font-size:22px">&#127807;</div>
+            <div>
+              <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;color:var(--navy)">Alterfood</div>
+              <div style="font-size:12px;color:var(--text-muted)">Chef de secteur &mdash; Agroalimentaire bio, Paris/IDF</div>
+            </div>
+          </div>
+          <div id="arrow-alterfood" style="color:var(--text-muted);transition:transform .2s;font-size:12px">&#9660;</div>
+        </div>
+        <div id="detail-alterfood" style="display:none;padding:0 16px 16px;border-top:1px solid var(--border);background:var(--off-white)">
+          <div style="font-size:13px;color:var(--navy);line-height:1.7;padding-top:12px">
+            <strong>L&apos;entreprise :</strong> Alterfood cr&eacute;e et distribue des marques alimentaires responsables et bio. Plus de 20 marques, 130 produits. Mission : des alternatives de consommation engag&eacute;es.<br><br>
+            <strong>Tes missions :</strong> D&eacute;velopper le CA sur Paris/IDF (78-92), assurer la pr&eacute;sence des produits en GMS, n&eacute;gocier des op&eacute;rations de visibilit&eacute;, &ecirc;tre l&apos;ambassadeur de la marque.<br><br>
+            <strong>Profil recherch&eacute; :</strong> Premi&egrave;re exp&eacute;rience commerciale, courage, audace et esprit d&apos;initiative. Ta personnalit&eacute; fera la diff&eacute;rence !
+          </div>
+          <a href="https://lumkeksqyfowqbkcmncc.supabase.co/storage/v1/object/public/fiches/Fiche_Alterfood.pdf" target="_blank" style="display:inline-flex;align-items:center;gap:6px;margin-top:12px;background:var(--navy);color:white;padding:8px 16px;border-radius:7px;font-family:'Gopher',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;text-decoration:none">
+            &darr; T&eacute;l&eacute;charger la fiche compl&egrave;te
+          </a>
+        </div>
+      </div>
+
+      <div class="modal-warning">&#9888;&#65039; Tu ne pourras pas changer de fiche en cours de route. T&eacute;l&eacute;charge celle qui t&apos;int&eacute;resse avant de continuer.</div>
     </div>
     <div class="modal-footer">
       <button class="modal-cta" onclick="document.getElementById('ficheModal').classList.add('hidden')">J&apos;AI T&Eacute;L&Eacute;CHARG&Eacute; MA FICHE &rarr; COMMENCER</button>
@@ -334,6 +481,25 @@ async function autoLoginCoach(email){
   updateProgress();buildNav();renderModule(state.currentModule);setView('coach');
 }
 
+function toggleFiche(id) {
+  const detail = document.getElementById('detail-' + id);
+  const arrow = document.getElementById('arrow-' + id);
+  const isOpen = detail.style.display !== 'none';
+  detail.style.display = isOpen ? 'none' : 'block';
+  arrow.style.transform = isOpen ? '' : 'rotate(180deg)';
+}
+
+function closeWelcomeModal() {
+  document.getElementById('welcomeModal').classList.add('hidden');
+  document.getElementById('welcomeModal').classList.remove('hidden');
+}
+
+function closeWelcomeAndShowFiches() {
+  document.getElementById('welcomeModal').classList.add('hidden');
+  document.getElementById('ficheModal').classList.remove('hidden');
+}
+
+
 function showMagicLinkConfirm(email){
   const form=document.querySelector('.login-form');
   if(!form)return;
@@ -374,7 +540,7 @@ async function doLogin(){
   }catch(e){console.warn('Supabase:',e.message);}
   if(state.completedModules.size>0)state.currentModule=Math.min(Math.max(...state.completedModules)+1,MODULES.length-1);
   updateProgress();buildNav();renderModule(state.currentModule);
-  if(state.completedModules.size===0)document.getElementById('ficheModal').classList.remove('hidden');
+  if(state.completedModules.size===0)document.getElementById('welcomeModal').classList.remove('hidden');
 }
 
 function buildNav(){
@@ -621,7 +787,11 @@ async function renderCoachView(){
             <td style="padding:12px 16px"><div style="display:flex;align-items:center;gap:10px"><div style="height:5px;background:var(--gray-light);border-radius:3px;width:100px;overflow:hidden"><div style="height:100%;background:var(--cyan);border-radius:3px;width:${pct}%"></div></div><span style="font-size:12px;color:var(--text-muted)">${s.progress}/${MODULES.length}</span></div></td>
             <td style="padding:12px 16px"><span style="display:inline-flex;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;${bc}">${s.status}</span></td>
             <td style="padding:12px 16px;font-size:12px;color:var(--text-muted)">${s.lastActivity}</td>
-            <td style="padding:12px 16px">${s.answers&&s.answers.length>0?`<button onclick="showAnswers('${s.email}')" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--navy);cursor:pointer">Voir (${[...new Set(s.answers.map(a=>a.module_id))].length} modules)</button>`:'<span style="font-size:12px;color:var(--text-muted)">&mdash;</span>'}</td>
+            <td style="padding:12px 16px"><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+  ${s.answers&&s.answers.length>0?`<button onclick="showAnswers('${s.email}')" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--navy);cursor:pointer">Voir (${[...new Set(s.answers.map(a=>a.module_id))].length})</button>`:''}
+  <button onclick="resetStudent('${s.email}','${s.name}')" style="background:transparent;border:1px solid #f0d080;border-radius:6px;padding:4px 10px;font-size:12px;color:#b07800;cursor:pointer">&#8635; Reset</button>
+  <button onclick="deleteStudent('${s.email}','${s.name}')" style="background:transparent;border:1px solid #ffd0d0;border-radius:6px;padding:4px 10px;font-size:12px;color:#c0392b;cursor:pointer">&#10005;</button>
+</div></td>
           </tr>`;
         }).join('')}
         </tbody>
@@ -629,6 +799,108 @@ async function renderCoachView(){
     </div>`;
   window._coachStudents=students;
 }
+
+async function showStudentActions(email, name) {
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(13,21,92,.75);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px';
+  ov.innerHTML = `
+    <div style="background:white;border-radius:16px;max-width:440px;width:100%;padding:28px;box-shadow:0 24px 60px rgba(13,21,92,.25)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+        <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:16px;text-transform:uppercase;color:var(--navy)">Actions &mdash; ${name}</div>
+        <button onclick="this.closest('[style*=fixed]').remove()" style="background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;color:var(--navy)">&times;</button>
+      </div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px">${email}</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button onclick="resetStudentProgress('${email}','${name}',this)" style="display:flex;align-items:center;gap:10px;background:var(--off-white);border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;cursor:pointer;text-align:left;width:100%">
+          <div style="font-size:20px">&#8635;</div>
+          <div>
+            <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;color:var(--navy);margin-bottom:2px">R&eacute;initialiser la progression</div>
+            <div style="font-size:12px;color:var(--text-muted)">Efface la progression et les r&eacute;ponses &mdash; l&apos;alternant repart de z&eacute;ro</div>
+          </div>
+        </button>
+        <button onclick="deleteStudent('${email}','${name}',this)" style="display:flex;align-items:center;gap:10px;background:#fff5f5;border:1.5px solid #fca5a5;border-radius:10px;padding:14px 16px;cursor:pointer;text-align:left;width:100%">
+          <div style="font-size:20px">&#128465;&#65039;</div>
+          <div>
+            <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;color:#e74c3c;margin-bottom:2px">Supprimer l&apos;alternant</div>
+            <div style="font-size:12px;color:var(--text-muted)">Supprime compl&egrave;tement l&apos;alternant et toutes ses donn&eacute;es</div>
+          </div>
+        </button>
+      </div>
+    </div>`;
+  ov.onclick = e => { if(e.target===ov) ov.remove(); };
+  document.body.appendChild(ov);
+}
+
+async function resetStudentProgress(email, name, btn) {
+  if (!confirm(`R&eacute;initialiser toute la progression de ${name} ?\nCette action est irr&eacute;versible.`)) return;
+  btn.textContent = 'En cours...';
+  btn.disabled = true;
+  try {
+    await Promise.all([
+      sb.from('progress').delete().eq('user_email', email),
+      sb.from('answers').delete().eq('user_email', email),
+    ]);
+    document.querySelector('[style*=fixed]')?.remove();
+    renderCoachView();
+    alert(`Progression de ${name} r&eacute;initialis&eacute;e avec succ&egrave;s.`);
+  } catch(e) {
+    btn.textContent = 'Erreur';
+    console.error(e);
+  }
+}
+
+async function deleteStudent(email, name, btn) {
+  if (!confirm(`Supprimer d&eacute;finitivement ${name} (${email}) ?\nToutes ses donn&eacute;es seront effac&eacute;es.`)) return;
+  btn.textContent = 'Suppression...';
+  btn.disabled = true;
+  try {
+    await Promise.all([
+      sb.from('answers').delete().eq('user_email', email),
+      sb.from('progress').delete().eq('user_email', email),
+    ]);
+    await sb.from('users').delete().eq('email', email);
+    document.querySelector('[style*=fixed]')?.remove();
+    renderCoachView();
+    alert(`${name} supprim&eacute;(e) avec succ&egrave;s.`);
+  } catch(e) {
+    btn.textContent = 'Erreur';
+    console.error(e);
+  }
+}
+
+async function resetStudent(email, name) {
+  if (!confirm(`Réinitialiser toute la progression de ${name} ?
+
+Ses réponses et sa progression seront supprimées. Cette action est irréversible.`)) return;
+  try {
+    await Promise.all([
+      sb.from('answers').delete().eq('user_email', email),
+      sb.from('progress').delete().eq('user_email', email),
+    ]);
+    alert(`Progression de ${name} réinitialisée.`);
+    renderCoachView();
+  } catch(e) {
+    alert('Erreur : ' + e.message);
+  }
+}
+
+async function deleteStudent(email, name) {
+  if (!confirm(`Supprimer définitivement ${name} (${email}) ?
+
+Toutes ses données seront supprimées. Cette action est irréversible.`)) return;
+  try {
+    await Promise.all([
+      sb.from('answers').delete().eq('user_email', email),
+      sb.from('progress').delete().eq('user_email', email),
+      sb.from('users').delete().eq('email', email),
+    ]);
+    alert(`${name} supprimé(e) avec succès.`);
+    renderCoachView();
+  } catch(e) {
+    alert('Erreur : ' + e.message);
+  }
+}
+
 
 function filterCoachTable(filter){
   const rows=document.querySelectorAll('#coachTableBody tr[data-status]');
