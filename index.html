@@ -654,7 +654,7 @@ function renderExercise(idx,m){
   const MODULES_AVEC_FICHE=[1,2,3,4,5,8];
   const topBlock=idx===1&&!submitted?renderFichesBlock():(MODULES_AVEC_FICHE.includes(idx)&&!submitted?`<div class="exercise-intro">&#128188; Rappel&nbsp;: travaille avec la fiche de poste choisie au module #1. Adapte tes r&eacute;ponses &agrave; cette fiche.</div>`:'');
   const checklist=['J&apos;arrive 10 min en avance (visio ou pr&eacute;sentiel)','Je porte une tenue propre, simple et professionnelle','J&apos;ai une posture droite, un regard stable, une &eacute;nergie positive','J&apos;ai&nbsp;: CV imprim&eacute;, carnet, stylo, environnement propre (en visio)','J&apos;ai fait mes recherches sur l&apos;entreprise&nbsp;: ce qu&apos;elle vend, &agrave; qui, ses actualit&eacute;s','J&apos;ai une phrase simple pour expliquer ce que fait l&apos;entreprise','J&apos;ai 3 raisons pr&eacute;cises pour lesquelles l&apos;entreprise m&apos;attire','J&apos;ai analys&eacute; la fiche de poste (missions, comp&eacute;tences, outils)','J&apos;ai 3 comp&eacute;tences cl&eacute;s du poste + une preuve en 1 phrase pour chacune','J&apos;ai pr&eacute;par&eacute; et adapt&eacute; mon pitch &agrave; l&apos;entreprise et au poste','Je fais un lien clair entre leur besoin et mon parcours','J&apos;ai 1-2 activit&eacute;s qui me mettent en valeur + une phrase pour chacune','J&apos;ai mes 3 STAR (derni&egrave;re exp., exp. dont je suis fier(e), exp. difficile)','J&apos;ai mes STAR comp&eacute;tences (3 cl&eacute;s du poste + 3 comp&eacute;tences autres)','Toutes mes r&eacute;ponses sont sp&eacute;cifiques &agrave; l&apos;entreprise et au poste','J&apos;ai compris les 4 astuces pour les mises en situation commerciale','J&apos;ai 2-3 questions pertinentes &agrave; poser en fin d&apos;entretien','Je me suis entra&icirc;n&eacute;(e) &agrave; voix haute plusieurs fois','Je suis capable de r&eacute;pondre sans lire, de fa&ccedil;on fluide','Est-ce que toutes mes r&eacute;ponses sont sp&eacute;cifiques &agrave; cette entreprise&nbsp;?'];
-  const checklistHtml=idx===9&&!submitted?`<div style="background:var(--cyan-light);border:1.5px solid var(--cyan);border-left:4px solid var(--cyan);border-radius:var(--radius);padding:18px 22px;margin-bottom:20px"><div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--navy);margin-bottom:12px">&#9989; La checklist en 20 points</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 20px">${checklist.map((item,i)=>`<div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--navy);line-height:1.4;padding:4px 0"><span style="width:18px;height:18px;border:1.5px solid var(--border);border-radius:3px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-muted);margin-top:1px">${i+1}</span><span>${item}</span></div>`).join('')}</div></div>`:'';
+  const checklistHtml=idx===9&&!submitted?`<div style="background:var(--cyan-light);border:1.5px solid var(--cyan);border-left:4px solid var(--cyan);border-radius:var(--radius);padding:18px 22px;margin-bottom:20px"><div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--navy);margin-bottom:12px">&#9989; La checklist en 20 points</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 20px">${checklist.map((item,i)=>`<div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--navy);line-height:1.4;padding:4px 0"><span style="width:18px;height:18px;border:1.5px solid var(--border);border-radius:3px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-muted);margin-top:1px">${i+1}</span><span>${item}</span></div>`).join('')}</div><div style="margin-top:14px"><button onclick="downloadChecklist()" style="display:inline-flex;align-items:center;gap:7px;background:var(--navy);color:white;border:none;border-radius:8px;padding:9px 18px;font-family:'Gopher',sans-serif;font-weight:700;font-size:11px;cursor:pointer">&#8681; T&eacute;l&eacute;charger la checklist</button></div></div></div>`:'';
   return `<div class="card"><div class="card-header"><div class="card-icon icon-ex">&#9997;&#65039;</div><div>
     <div class="card-title">Exercice d&apos;application</div>
     <div class="card-sub">${submitted?'Exercice soumis &mdash; en attente du feedback de ton coach':'R&eacute;ponds aux questions &mdash; tes r&eacute;ponses sont transmises &agrave; ton coach'}</div>
@@ -913,6 +913,63 @@ Toutes ses données seront supprimées. Cette action est irréversible.`)) retur
   }
 }
 
+
+function downloadChecklist() {
+  const items = [
+    "J'arrive 10 min en avance (visio ou présentiel)",
+    "Je porte une tenue propre, simple et professionnelle",
+    "J'ai une posture droite, un regard stable, une énergie positive",
+    "J'ai : CV imprimé, carnet, stylo, environnement propre (en visio)",
+    "J'ai fait mes recherches sur l'entreprise : ce qu'elle vend, à qui, ses actualités",
+    "J'ai une phrase simple pour expliquer ce que fait l'entreprise",
+    "J'ai 3 raisons précises pour lesquelles l'entreprise m'attire",
+    "J'ai analysé la fiche de poste (missions, compétences, outils)",
+    "J'ai 3 compétences clés du poste + une preuve en 1 phrase pour chacune",
+    "J'ai préparé et adapté mon pitch à l'entreprise et au poste",
+    "Je fais un lien clair entre leur besoin et mon parcours",
+    "J'ai 1-2 activités qui me mettent en valeur + une phrase pour chacune",
+    "J'ai mes 3 STAR (dernière exp., exp. dont je suis fier(e), exp. difficile)",
+    "J'ai mes STAR compétences (3 clés du poste + 3 compétences autres)",
+    "Toutes mes réponses sont spécifiques à l'entreprise et au poste",
+    "J'ai compris les 4 astuces pour les mises en situation commerciale",
+    "J'ai 2-3 questions pertinentes à poser en fin d'entretien",
+    "Je me suis entraîné(e) à voix haute plusieurs fois",
+    "Je suis capable de répondre sans lire, de façon fluide",
+    "Est-ce que toutes mes réponses sont spécifiques à cette entreprise ?"
+  ];
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Checklist entretien EEC</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 20px; color: #0d155c; }
+  h1 { font-size: 22px; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 3px solid #72e4e5; padding-bottom: 10px; margin-bottom: 6px; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 24px; }
+  .item { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0; border-bottom: 1px solid #e8eaf3; }
+  .num { width: 24px; height: 24px; border: 2px solid #0d155c; border-radius: 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; }
+  .check { width: 20px; height: 20px; border: 1.5px solid #ccc; border-radius: 3px; flex-shrink: 0; margin-top: 2px; }
+  .text { font-size: 13px; line-height: 1.5; flex: 1; }
+  .footer { margin-top: 24px; font-size: 11px; color: #999; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>La checklist en 20 points</h1>
+  <div class="subtitle">EEC — École de l'Excellence Commerciale &nbsp;|&nbsp; Parcours Entretiens d'Embauche</div>
+  ${items.map((item, i) => `<div class="item"><div class="num">${i+1}</div><div class="check"></div><div class="text">${item}</div></div>`).join('')}
+  <div class="footer">© EEC Paris — À imprimer et cocher avant chaque entretien</div>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'Checklist_Entretien_EEC.html';
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 function searchCoach(query) {
   const q = query.toLowerCase().trim();
