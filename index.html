@@ -2,7 +2,8 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='72' font-size='42' font-family='Arial Black,sans-serif' font-weight='900' fill='%230d155c' text-anchor='middle' letter-spacing='-2'>EEC</text></svg>">
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48dGV4dCB4PSI1MCIgeT0iNzQiIGZvbnQtc2l6ZT0iNTAiIGZvbnQtZmFtaWx5PSJWZXJkYW5hLEdlbmV2YSxzYW5zLXNlcmlmIiBmb250LXdlaWdodD0iNzAwIiBmaWxsPSIjMGQxNTVjIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBsZXR0ZXItc3BhY2luZz0iLTMiPkVFQzwvdGV4dD48L3N2Zz4=">
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EEC — Parcours Entretiens</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -223,50 +224,30 @@ textarea:disabled{opacity:.7;cursor:default}
   </div>
 </div>
 <!-- MODALE BIENVENUE -->
-<div id="welcomeModal" class="modal-overlay hidden">
-  <div class="modal-box" style="max-width:600px">
-    <div class="modal-header" style="padding:28px 32px 24px">
-      <div class="modal-tag">&#127891; Bienvenue chez EEC</div>
-      <div class="modal-title" style="font-size:22px">Ton parcours de<br>pr&eacute;paration commence !</div>
+<!-- MODALE NOM -->
+<div id="nameModal" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:440px">
+    <div class="modal-header">
+      <div class="modal-tag">&#128100; Identification</div>
+      <div class="modal-title">Comment tu t&apos;appelles ?</div>
     </div>
-    <div class="modal-body" style="padding:24px 32px">
-      <div style="font-size:15px;color:var(--navy);line-height:1.7;margin-bottom:20px">
-        Ce parcours a &eacute;t&eacute; con&ccedil;u pour te pr&eacute;parer au mieux &agrave; tes entretiens d&apos;embauche. Il est compos&eacute; de <strong>11 modules progressifs</strong>, chacun con&ccedil;u pour renforcer une comp&eacute;tence cl&eacute;.
-      </div>
-      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px">
-        <div style="display:flex;align-items:flex-start;gap:12px;background:var(--off-white);border-radius:10px;padding:14px 16px">
-          <div style="font-size:20px;flex-shrink:0">&#127916;</div>
-          <div>
-            <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);margin-bottom:3px">Regarde les vid&eacute;os</div>
-            <div style="font-size:13px;color:var(--text-muted);line-height:1.5">Chaque module commence par une vid&eacute;o de pr&eacute;sentation. Ne la saute pas &mdash; elle pose les bases de l&apos;exercice.</div>
-          </div>
+    <div class="modal-body">
+      <div class="modal-intro">Pour que ton coach puisse identifier tes r&eacute;ponses, merci de renseigner ton pr&eacute;nom et ton nom.</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div>
+          <label style="font-family:'Gopher',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--navy);display:block;margin-bottom:6px">Pr&eacute;nom</label>
+          <input type="text" id="inputPrenom" placeholder="Ex : Thomas" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:11px 14px;font-family:'GopherDisplay',sans-serif;font-size:14px;color:var(--navy);outline:none">
         </div>
-        <div style="display:flex;align-items:flex-start;gap:12px;background:var(--off-white);border-radius:10px;padding:14px 16px">
-          <div style="font-size:20px;flex-shrink:0">&#128209;</div>
-          <div>
-            <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);margin-bottom:3px">Lis les slides</div>
-            <div style="font-size:13px;color:var(--text-muted);line-height:1.5">Les slides r&eacute;sument les points cl&eacute;s. Prends le temps de les lire slide par slide avant de passer &agrave; l&apos;exercice.</div>
-          </div>
+        <div>
+          <label style="font-family:'Gopher',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--navy);display:block;margin-bottom:6px">Nom</label>
+          <input type="text" id="inputNom" placeholder="Ex : Dupont" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:11px 14px;font-family:'GopherDisplay',sans-serif;font-size:14px;color:var(--navy);outline:none">
         </div>
-        <div style="display:flex;align-items:flex-start;gap:12px;background:var(--off-white);border-radius:10px;padding:14px 16px">
-          <div style="font-size:20px;flex-shrink:0">&#9997;&#65039;</div>
-          <div>
-            <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);margin-bottom:3px">R&eacute;ponds aux exercices</div>
-            <div style="font-size:13px;color:var(--text-muted);line-height:1.5">Chaque module doit &ecirc;tre compl&eacute;t&eacute; avant d&apos;acc&eacute;der au suivant. Tes r&eacute;ponses sont transmises &agrave; ton coach qui te fera un retour personnalis&eacute;.</div>
-          </div>
-        </div>
-        <div style="display:flex;align-items:flex-start;gap:12px;background:var(--cyan-light);border:1px solid var(--cyan);border-radius:10px;padding:14px 16px">
-          <div style="font-size:20px;flex-shrink:0">&#128161;</div>
-          <div>
-            <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);margin-bottom:3px">Sois sp&eacute;cifique</div>
-            <div style="font-size:13px;color:var(--text-muted);line-height:1.5">Des r&eacute;ponses g&eacute;n&eacute;riques ne convainquent jamais un recruteur. Adapte chaque r&eacute;ponse &agrave; l&apos;entreprise et au poste que tu vises.</div>
-          </div>
-        </div>
+        <div id="nameError" style="color:#e74c3c;font-size:12px;display:none">&#9888; Merci de renseigner ton pr&eacute;nom et ton nom.</div>
       </div>
     </div>
-    <div class="modal-footer" style="padding:0 32px 28px">
-      <button class="modal-cta" style="width:100%;text-align:center;padding:14px" onclick="closeWelcomeModal()">
-        J&apos;AI COMPRIS &rarr; CHOISIR MA FICHE DE POSTE
+    <div class="modal-footer">
+      <button class="modal-cta" style="width:100%;text-align:center;padding:14px" onclick="saveNameAndContinue()">
+        CONTINUER &rarr;
       </button>
     </div>
   </div>
@@ -493,6 +474,36 @@ function toggleFiche(id) {
   arrow.style.transform = isOpen ? '' : 'rotate(180deg)';
 }
 
+function saveNameAndContinue() {
+  const prenom = document.getElementById('inputPrenom').value.trim();
+  const nom = document.getElementById('inputNom').value.trim();
+  const errEl = document.getElementById('nameError');
+
+  if (!prenom || !nom) {
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+
+  const fullName = prenom + ' ' + nom;
+  state.user.name = fullName;
+
+  // Mettre à jour l'affichage dans la sidebar
+  document.getElementById('userName').textContent = fullName;
+  document.getElementById('userAvatar').textContent = (prenom[0] + nom[0]).toUpperCase();
+
+  // Sauvegarder le nom dans Supabase
+  try {
+    sb.from('users').update({ name: fullName }).eq('email', state.user.email).then(() => {
+      console.log('Nom sauvegardé ✓');
+    });
+  } catch(e) { console.warn('Supabase name save:', e); }
+
+  // Fermer la modale nom et afficher la modale bienvenue
+  document.getElementById('nameModal').classList.add('hidden');
+  document.getElementById('welcomeModal').classList.remove('hidden');
+}
+
 function closeWelcomeModal() {
   const wm = document.getElementById('welcomeModal');
   const fm = document.getElementById('ficheModal');
@@ -548,7 +559,10 @@ async function doLogin(){
   }catch(e){console.warn('Supabase:',e.message);}
   if(state.completedModules.size>0)state.currentModule=Math.min(Math.max(...state.completedModules)+1,MODULES.length-1);
   updateProgress();buildNav();renderModule(state.currentModule);
-  if(state.completedModules.size===0)document.getElementById('welcomeModal').classList.remove('hidden');
+  if(state.completedModules.size===0){
+    document.getElementById('nameModal').classList.remove('hidden');
+    setTimeout(()=>document.getElementById('inputPrenom').focus(), 100);
+  }
 }
 
 function buildNav(){
