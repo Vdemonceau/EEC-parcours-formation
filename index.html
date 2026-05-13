@@ -1128,7 +1128,7 @@ function downloadChecklist() {
   <div class="footer">© EEC Paris — À imprimer et cocher avant chaque entretien</div>
 
 <!-- BOUTON AIDE -->
-<button class="help-btn hidden" id="helpBtn" onclick="toggleHelp()" title="Aide">&#10067;</button>
+<button class="help-btn" id="helpBtn" style="display:none" onclick="toggleHelp()" title="Aide">&#10067;</button>
 <div class="help-panel" id="helpPanel">
   <div class="help-panel-header">
     <div class="help-panel-title">&#128172; Besoin d&apos;aide ?</div>
@@ -1241,7 +1241,7 @@ async function sendHelpMessage() {
 // Afficher le bouton aide quand l'élève est connecté (pas en vue coach)
 function showHelpBtn() {
   const btn = document.getElementById('helpBtn');
-  if (btn) btn.classList.remove('hidden');
+  if (btn) btn.style.display = '';
 }
 
 function toggleSidebar(){const s=document.querySelector('.sidebar'),o=document.getElementById('sidebarOverlay');s.classList.toggle('open');o.classList.toggle('open');document.body.style.overflow=s.classList.contains('open')?'hidden':'';}
