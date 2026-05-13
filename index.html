@@ -858,7 +858,14 @@ async function renderCoachView(){
         ${!m.read?`<button onclick="markMsgRead('${m.id}',this)" style="margin-top:8px;background:transparent;border:1px solid #d0d4e8;border-radius:5px;padding:3px 10px;font-size:11px;color:#6670a0;cursor:pointer">Marquer comme lu</button>`:'<div style="margin-top:6px;font-size:11px;color:#00b894">&#10003; Lu</div>'}
       </div>`).join('')}</div>`;
     el.appendChild(sec);
-  } catch(e) { console.warn('msgs:',e.message); }
+  } catch(e) {
+    console.warn('msgs:',e.message);
+    // Afficher quand même la section avec le message d'erreur
+    const secErr = document.createElement('div');
+    secErr.style.cssText = 'background:white;border:1px solid #d0d4e8;border-radius:12px;overflow:hidden;margin-top:24px';
+    secErr.innerHTML = '<div style="padding:14px 20px;border-bottom:1px solid #d0d4e8"><span style="font-family:\'Gopher\',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#0d155c">Messages d\'aide</span></div><p style="text-align:center;padding:24px;color:#6670a0;font-size:13px">Impossible de charger les messages : ' + e.message + '</p>';
+    el.appendChild(secErr);
+  }
 }
 
 async function markMsgRead(id, btn) {
