@@ -789,17 +789,26 @@ async function renderCoachView(){
   el.innerHTML='<div style="text-align:center;padding:60px;color:var(--text-muted)"><div style="font-size:32px;margin-bottom:12px">&#9203;</div>Chargement...</div>';
   let students=[];
   try{
-    const [{data:users},{data:progress},{data:answers}]=await Promise.all([
+    const [{data:users},{data:progress},{data:answers},{data:ivData}]=await Promise.all([
       sb.from('users').select('*').order('created_at',{ascending:false}),
       sb.from('progress').select('*'),
-      sb.from('answers').select('*').order('submitted_at',{ascending:false})
+      sb.from('answers').select('*').order('submitted_at',{ascending:false}),
+      sb.from('interviews').select('user_email,statut')
     ]);
     window._allAnswers=answers||[];
+    // Stats carnets par email
+    const ivByEmail={};
+    (ivData||[]).forEach(function(iv){
+      if(!ivByEmail[iv.user_email]) ivByEmail[iv.user_email]={total:0,offres:0};
+      ivByEmail[iv.user_email].total++;
+      if(iv.statut==='Offre reçue') ivByEmail[iv.user_email].offres++;
+    });
     students=(users||[]).map(u=>{
       const prog=(progress||[]).filter(p=>p.user_email===u.email&&p.completed);
       const ans=(answers||[]).filter(a=>a.user_email===u.email);
       const last=ans[0];const n=prog.length;
-      return {name:u.name||u.email.split('@')[0],email:u.email,progress:n,
+      var iv=ivByEmail[u.email]||{total:0,offres:0};
+      return {name:u.name||u.email.split('@')[0],email:u.email,progress:n,ivTotal:iv.total,ivOffres:iv.offres,
         status:n>=(MODULES.length-1)?'Termin\u00e9':n>0?'En cours':'Pas commenc\u00e9',
         lastActivity:last?new Date(last.submitted_at).toLocaleDateString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'&mdash;',
         answers:ans};
@@ -837,6 +846,8 @@ async function renderCoachView(){
             <td style="padding:12px 16px"><span style="display:inline-flex;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;${bc}">${s.status}</span></td>
             <td style="padding:12px 16px;font-size:12px;color:var(--text-muted)">${s.lastActivity}</td>
             <td style="padding:12px 16px">
+              ${s.ivTotal>0?`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-size:13px;font-weight:600;color:var(--navy)">${s.ivTotal}</span><span style="font-size:11px;color:var(--text-muted)">entretien${s.ivTotal>1?'s':''}</span>${s.ivOffres>0?`<span style="background:var(--green-light);color:var(--green);font-size:10px;padding:2px 6px;border-radius:10px">${s.ivOffres} offre${s.ivOffres>1?'s':''}</span>`:''}<button data-carnet-email="${s.email}" data-carnet-name="${s.name}" style="background:var(--cyan-light);border:1px solid var(--cyan);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--navy);cursor:pointer">Voir</button></div>`:'<span style="font-size:12px;color:var(--text-muted)">—</span>'}</td>
+            <td style="padding:12px 16px">
   <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
     ${s.answers&&s.answers.length>0?`<button onclick="showAnswers('${s.email}')" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--navy);cursor:pointer">Voir (${[...new Set(s.answers.map(a=>a.module_id))].length} modules)</button>`:''}
     
@@ -850,19 +861,11 @@ async function renderCoachView(){
     </div>`;
   window._coachStudents=students;
 
-  // Boutons Carnet — injectés après rendu via data-email/data-name sur les <tr>
-  requestAnimationFrame(function() {
-    document.querySelectorAll('#coachTableBody tr[data-email]').forEach(function(tr) {
-      var email = tr.getAttribute('data-email');
-      var name = tr.getAttribute('data-name');
-      var flexDiv = tr.querySelector('td:last-child div');
-      if (!flexDiv || !email) return;
-      var btn = document.createElement('button');
-      btn.style.cssText = 'background:var(--cyan-light);border:1px solid var(--cyan);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--navy);cursor:pointer;font-family:inherit';
-      btn.innerHTML = '&#128218; Carnet';
-      btn.onclick = (function(e,n){ return function(){ showCoachCarnet(e,n); }; })(email, name);
-      flexDiv.insertBefore(btn, flexDiv.firstChild);
-    });
+  // Event listener pour boutons Carnet (data-carnet-email)
+  el.addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-carnet-email]');
+    if (!btn) return;
+    showCoachCarnet(btn.getAttribute('data-carnet-email'), btn.getAttribute('data-carnet-name'));
   });
 
   // Messages d'aide
