@@ -403,7 +403,7 @@ textarea:disabled{opacity:.7;cursor:default}
     <div class="sidebar-footer">
       <div class="user-pill">
         <div class="user-avatar" id="userAvatar">?</div>
-        <div><div class="user-name" id="userName">&mdash;</div><div class="user-sub">EEC Paris</div></div>
+        <div><div class="user-name" id="userName">&mdash;</div><div class="user-sub">EEC</div></div>
       </div>
     </div>
   </aside>
@@ -468,6 +468,14 @@ async function autoLoginCoach(email){
       sb.from('answers').select('module_id,question_index,answer_text').eq('user_email',email),
     ]);
     if(p.data)p.data.forEach(r=>{if(r.completed){state.completedModules.add(Number(r.module_id));state.submittedModules.add(Number(r.module_id));}});
+    // Si modules 1-10 tous complétés mais pas le 0, marquer le 0 comme complété
+    if(!state.completedModules.has(0)&&state.completedModules.size>=(MODULES.length-1)){
+      state.completedModules.add(0);state.submittedModules.add(0);
+    }
+    // Si modules 1-10 tous complétés mais pas le 0, marquer le 0 comme complété
+    if(!state.completedModules.has(0)&&state.completedModules.size>=(MODULES.length-1)){
+      state.completedModules.add(0);state.submittedModules.add(0);
+    }
     if(a.data)a.data.forEach(r=>{if(!state.answers[r.module_id])state.answers[r.module_id]={};state.answers[r.module_id][r.question_index]=r.answer_text;});
   }catch(e){console.warn(e);}
   if(state.completedModules.size>0)state.currentModule=Math.min(Math.max(...state.completedModules)+1,MODULES.length-1);
@@ -712,7 +720,19 @@ function renderTip(m){
 
 function setStep(idx,step){
   state.currentStep[idx]=step;
-  if(idx===0&&step===3){state.completedModules.add(0);state.submittedModules.add(0);updateProgress();buildNav();}
+  if(idx===0&&step===3){
+    state.completedModules.add(0);
+    state.submittedModules.add(0);
+    updateProgress();
+    buildNav();
+    // Sauvegarder module 0 en Supabase
+    if(state.user&&state.user.email){
+      sb.from('progress').upsert(
+        {user_email:state.user.email,module_id:0,completed:true,completed_at:new Date().toISOString()},
+        {onConflict:'user_email,module_id'}
+      ).catch(function(e){console.warn('module 0 save:',e);});
+    }
+  }
   renderModule(idx);
 }
 function prevSlide(idx){if((state.currentSlide[idx]||0)>0){state.currentSlide[idx]--;renderModule(idx);}}
