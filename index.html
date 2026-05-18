@@ -593,6 +593,14 @@ function navClick(i){
     const maxUnlocked=state.completedModules.size>0?Math.max(...state.completedModules)+1:0;
     if(i>maxUnlocked&&!state.completedModules.has(i))return;
   }
+  // Cacher le carnet si ouvert
+  const cv=document.getElementById('carnetView');
+  if(cv) cv.style.display='none';
+  // Réinitialiser le bouton carnet
+  const cb=document.getElementById('carnetBtn');
+  if(cb){ cb.style.background='rgba(114,228,229,.08)'; cb.style.borderLeftColor='transparent'; }
+  // Afficher la vue élève
+  document.getElementById('studentView').classList.remove('hidden');
   state.currentModule=i;buildNav();renderModule(i);
 }
 
@@ -746,35 +754,22 @@ function goNext(idx){
 
 function showParcoursFini(){
   setTimeout(function(){ initCarnet(); }, 500);
-  const el=document.getElementById('studentView');
-  el.innerHTML=`<div style="padding:40px;max-width:640px;margin:0 auto">
-    <div style="text-align:center;margin-bottom:40px">
-      <div style="font-size:64px;margin-bottom:20px">&#127881;</div>
-      <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:28px;text-transform:uppercase;color:var(--navy);margin-bottom:12px;letter-spacing:.03em">Parcours termin&eacute;&nbsp;!</div>
-      <div style="font-size:15px;color:var(--text-muted);line-height:1.7">
-        F&eacute;licitations &mdash; tu as compl&eacute;t&eacute; les ${MODULES.length} modules.<br>
-        Ton coach a re&ccedil;u toutes tes r&eacute;ponses et reviendra vers toi avec un feedback.
-      </div>
-    </div>
-    <div style="background:var(--cyan-light);border:1.5px solid var(--cyan);border-radius:var(--radius-lg);padding:24px 28px;margin-bottom:20px">
-      <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--navy);margin-bottom:10px">&#128218; La suite &mdash; ton carnet de bord</div>
-      <div style="font-size:14px;color:var(--text-muted);line-height:1.7;margin-bottom:16px">
-        Tu as maintenant acc&egrave;s &agrave; une nouvelle section dans le menu &agrave; gauche&nbsp;:
-        <strong style="color:var(--navy)">Mon carnet de bord</strong>.<br><br>
-        C&apos;est l&agrave; que tu pourras suivre tes candidatures et entretiens au fur et &agrave; mesure
-        de ta recherche d&apos;alternance&nbsp;: entreprises rencontr&eacute;es, &eacute;tapes franchies,
-        ressenti, difficult&eacute;s, prochaines actions.
-      </div>
-      <button onclick="showCarnet()" style="background:var(--navy);color:white;border:none;border-radius:8px;padding:11px 22px;font-family:'Gopher',sans-serif;font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer">OUVRIR MON CARNET DE BORD &rarr;</button>
-    </div>
-    <div style="background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px 24px;margin-bottom:20px">
-      <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--navy);margin-bottom:10px">&#128203; Avant ta mise en situation</div>
-      <div style="font-size:14px;color:var(--text-muted);line-height:1.6">Relis tes r&eacute;ponses aux modules cl&eacute;s. Entra&icirc;ne-toi &agrave; voix haute. Arrive 10 min en avance.</div>
-    </div>
-    <div style="text-align:center">
-      <button onclick="renderModule(0)" style="background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:10px 22px;font-family:'GopherDisplay',sans-serif;font-size:13px;color:var(--navy);cursor:pointer">&larr; Revoir un module</button>
-    </div>
-  </div>`;
+  var el=document.getElementById('studentView');
+  var div = document.createElement('div');
+  div.style.cssText = 'padding:40px;max-width:640px;margin:0 auto';
+  div.innerHTML = '<div style="text-align:center;margin-bottom:40px">'
+    + '<div style="font-size:64px;margin-bottom:20px">&#127881;</div>'
+    + '<div style="font-family:GopherDisplay,sans-serif;font-weight:700;font-size:28px;text-transform:uppercase;color:var(--navy);margin-bottom:12px">Parcours termin&eacute;&nbsp;!</div>'
+    + '<div style="font-size:15px;color:var(--text-muted);line-height:1.7">F&eacute;licitations &mdash; tu as compl&eacute;t&eacute; les ' + MODULES.length + ' modules.<br>Ton coach a re&ccedil;u toutes tes r&eacute;ponses.</div>'
+    + '</div>'
+    + '<div style="background:var(--cyan-light);border:1.5px solid var(--cyan);border-radius:var(--radius-lg);padding:24px 28px;margin-bottom:20px">'
+    + '<div style="font-family:GopherDisplay,sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--navy);margin-bottom:10px">&#128218; La suite &mdash; ton carnet de bord</div>'
+    + '<div style="font-size:14px;color:var(--text-muted);line-height:1.7;margin-bottom:16px">Tu as maintenant acc&egrave;s &agrave; <strong style="color:var(--navy)">Mon carnet de bord</strong> dans le menu &agrave; gauche. Suis-y tes entretiens au fur et &agrave; mesure de ta recherche.</div>'
+    + '<button onclick="showCarnet()" style="background:var(--navy);color:white;border:none;border-radius:8px;padding:11px 22px;font-family:inherit;font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer">OUVRIR MON CARNET &rarr;</button>'
+    + '</div>'
+    + '<div style="text-align:center"><button onclick="renderModule(0)" style="background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:10px 22px;font-family:inherit;font-size:13px;color:var(--navy);cursor:pointer">&larr; Revoir un module</button></div>';
+  el.innerHTML = '';
+  el.appendChild(div);
   document.getElementById('breadcrumbTitle').textContent='Parcours terminé';
 }
 
@@ -836,7 +831,7 @@ async function renderCoachView(){
         ${total===0?`<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-muted)">Aucun alternant inscrit pour l&apos;instant</td></tr>`:students.map(s=>{
           const pct=Math.round(s.progress/MODULES.length*100);
           const bc=s.status==='Termin\u00e9'?'background:#e0f9f4;color:#00b894':s.status==='En cours'?'background:var(--cyan-light);color:var(--navy)':'background:var(--gray-light);color:var(--text-muted)';
-          return `<tr data-status="${s.status}" style="border-bottom:1px solid var(--gray-light)">
+          return `<tr data-status="${s.status}" data-email="${s.email}" data-name="${s.name}" style="border-bottom:1px solid var(--gray-light)">
             <td style="padding:12px 16px"><div style="font-weight:500;color:var(--navy);margin-bottom:2px">${s.name}</div><div style="font-size:11px;color:var(--text-muted)">${s.email}</div></td>
             <td style="padding:12px 16px"><div style="display:flex;align-items:center;gap:10px"><div style="height:5px;background:var(--gray-light);border-radius:3px;width:100px;overflow:hidden"><div style="height:100%;background:var(--cyan);border-radius:3px;width:${pct}%"></div></div><span style="font-size:12px;color:var(--text-muted)">${s.progress}/${MODULES.length}</span></div></td>
             <td style="padding:12px 16px"><span style="display:inline-flex;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;${bc}">${s.status}</span></td>
@@ -844,6 +839,7 @@ async function renderCoachView(){
             <td style="padding:12px 16px">
   <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
     ${s.answers&&s.answers.length>0?`<button onclick="showAnswers('${s.email}')" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--navy);cursor:pointer">Voir (${[...new Set(s.answers.map(a=>a.module_id))].length} modules)</button>`:''}
+    
     <button onclick="showStudentActions('${s.email}','${s.name}')" style="background:var(--off-white);border:1.5px solid var(--border);border-radius:6px;padding:4px 12px;font-size:12px;color:var(--navy);cursor:pointer" title="Actions">&#8942;</button>
   </div>
 </td>
@@ -853,6 +849,21 @@ async function renderCoachView(){
       </table></div>
     </div>`;
   window._coachStudents=students;
+
+  // Boutons Carnet — injectés après rendu via data-email/data-name sur les <tr>
+  requestAnimationFrame(function() {
+    document.querySelectorAll('#coachTableBody tr[data-email]').forEach(function(tr) {
+      var email = tr.getAttribute('data-email');
+      var name = tr.getAttribute('data-name');
+      var flexDiv = tr.querySelector('td:last-child div');
+      if (!flexDiv || !email) return;
+      var btn = document.createElement('button');
+      btn.style.cssText = 'background:var(--cyan-light);border:1px solid var(--cyan);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--navy);cursor:pointer;font-family:inherit';
+      btn.innerHTML = '&#128218; Carnet';
+      btn.onclick = (function(e,n){ return function(){ showCoachCarnet(e,n); }; })(email, name);
+      flexDiv.insertBefore(btn, flexDiv.firstChild);
+    });
+  });
 
   // Messages d'aide
   try {
@@ -1208,7 +1219,8 @@ function showCarnet() {
   renderCarnet(view);
 }
 
-async function renderCarnet(el) {
+async function renderCarnet(el, activeFilter) {
+  activeFilter = activeFilter || 'all';
   el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted)"><div style="font-size:32px">&#9203;</div><div>Chargement...</div></div>';
 
   let interviews = [];
@@ -1216,6 +1228,10 @@ async function renderCarnet(el) {
     const { data } = await sb.from('interviews').select('*').eq('user_email', state.user.email).order('date_entretien',{ascending:false});
     interviews = data || [];
   } catch(e) { console.warn('interviews:', e.message); }
+
+  // Filtrer selon activeFilter
+  const toShow = activeFilter === 'all' ? interviews
+    : interviews.filter(function(i){ return i.statut === activeFilter; });
 
   el.innerHTML = '';
 
@@ -1241,23 +1257,31 @@ async function renderCarnet(el) {
 
   const grid = document.createElement('div');
   grid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px';
+  var filterKeys = {'Entretiens passés':'all','En cours':'En cours','Offres reçues':'Offre reçue','Refus':'Refus'};
   [
     ['Entretiens passés', total,   '#0d155c',           'white'],
     ['En cours',          enCours, 'var(--cyan-light)', 'var(--navy)'],
     ['Offres reçues',     offres,  'var(--green-light)','var(--green)'],
     ['Refus',             refus,   '#fff0f0',           '#e74c3c'],
   ].forEach(function(row) {
-    const label=row[0], n=row[1], bg=row[2], color=row[3];
-    const c = document.createElement('div');
-    c.style.cssText = 'background:'+bg+';border-radius:12px;padding:18px 20px';
+    var label=row[0], n=row[1], bg=row[2], color=row[3];
+    var fk = filterKeys[label];
+    var isActive = (activeFilter === fk);
+    var c = document.createElement('div');
+    c.style.cssText = 'background:'+bg+';border-radius:12px;padding:18px 20px;cursor:pointer;'
+      + (isActive ? 'outline:3px solid rgba(0,0,0,.3);' : '');
+    c.onmouseover = function(){ this.style.opacity='.85'; };
+    c.onmouseout  = function(){ this.style.opacity='1'; };
+    c.onclick = (function(key, parentEl){ return function(){ renderCarnet(parentEl, key); }; })(fk, el);
     c.innerHTML = '<div style="font-weight:700;font-size:28px;color:'+color+';margin-bottom:4px">'+n+'</div>'
-                + '<div style="font-size:12px;color:'+color+';opacity:.7">'+label+'</div>';
+                + '<div style="font-size:12px;color:'+color+';opacity:.7">'+label+'</div>'
+                + '<div style="font-size:10px;color:'+color+';opacity:.5;margin-top:4px">&#8593; Filtrer</div>';
     grid.appendChild(c);
   });
   el.appendChild(grid);
 
   // Liste
-  if (interviews.length === 0) {
+  if (toShow.length === 0) {
     const empty = document.createElement('div');
     empty.style.cssText = 'background:white;border:1px solid var(--border);border-radius:12px;padding:48px;text-align:center;color:var(--text-muted)';
     empty.innerHTML = '<div style="font-size:40px;margin-bottom:16px">&#128221;</div>'
@@ -1270,7 +1294,7 @@ async function renderCarnet(el) {
   const statusBg = {'En cours':'var(--cyan-light);color:var(--navy)','En attente':'#fff8e8;color:#b07800','Offre reçue':'var(--green-light);color:var(--green)','Refus':'#fff0f0;color:#e74c3c'};
   const etapeBg  = {'Premier contact':'#e8f0fe','Entretien RH':'#f0e8fe','Entretien manager':'#e8f8fe','Cas pratique':'#fff8e8','Offre':'var(--green-light)'};
 
-  interviews.forEach(function(iv) {
+  toShow.forEach(function(iv) {
     const card = document.createElement('div');
     card.style.cssText = 'background:white;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:12px';
 
@@ -1536,6 +1560,133 @@ async function deleteInterview(id, parentEl) {
     await sb.from('interviews').delete().eq('id', id);
     renderCarnet(parentEl);
   } catch(e) { console.warn(e); }
+}
+
+// ── VUE COACH : Suivi carnets de bord
+async function showCoachCarnet(email, name) {
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(13,21,92,.75);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:40px 24px;overflow-y:auto';
+  ov.onclick = function(e) { if(e.target===ov) ov.remove(); };
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:white;border-radius:16px;max-width:780px;width:100%;padding:28px;box-shadow:0 24px 60px rgba(13,21,92,.25)';
+
+  // Header
+  const hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:24px';
+  const title = document.createElement('div');
+  title.innerHTML = '<div style="font-weight:700;font-size:18px;text-transform:uppercase;color:var(--navy);margin-bottom:3px">&#128218; Carnet de bord</div>'
+    + '<div style="font-size:13px;color:var(--text-muted)">'+name+' &mdash; '+email+'</div>';
+  const closeBtn = document.createElement('button');
+  closeBtn.style.cssText = 'background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;color:var(--navy);font-family:inherit';
+  closeBtn.textContent = '× Fermer';
+  closeBtn.onclick = function() { ov.remove(); };
+  hdr.appendChild(title);
+  hdr.appendChild(closeBtn);
+  box.appendChild(hdr);
+
+  // Loading
+  const loading = document.createElement('div');
+  loading.style.cssText = 'text-align:center;padding:40px;color:var(--text-muted)';
+  loading.innerHTML = '<div style="font-size:28px">&#9203;</div><div>Chargement...</div>';
+  box.appendChild(loading);
+
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+
+  // Charger les entretiens
+  let interviews = [];
+  try {
+    const { data } = await sb.from('interviews').select('*').eq('user_email', email).order('date_entretien', {ascending:false});
+    interviews = data || [];
+  } catch(e) { console.warn('coach carnet:', e.message); }
+
+  loading.remove();
+
+  if (interviews.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'text-align:center;padding:40px;color:var(--text-muted)';
+    empty.innerHTML = '<div style="font-size:32px;margin-bottom:12px">&#128221;</div><div>Aucun entretien enregistré pour l\'instant.</div>';
+    box.appendChild(empty);
+    return;
+  }
+
+  // Stats
+  const total = interviews.length;
+  const enCours = interviews.filter(function(i){return i.statut==='En cours';}).length;
+  const offres  = interviews.filter(function(i){return i.statut==='Offre reçue';}).length;
+  const refus   = interviews.filter(function(i){return i.statut==='Refus';}).length;
+
+  const statsGrid = document.createElement('div');
+  statsGrid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px';
+  [
+    ['Entretiens', total,   '#0d155c', 'white'],
+    ['En cours',   enCours, 'var(--cyan-light)', 'var(--navy)'],
+    ['Offres',     offres,  'var(--green-light)', 'var(--green)'],
+    ['Refus',      refus,   '#fff0f0', '#e74c3c'],
+  ].forEach(function(row) {
+    const c = document.createElement('div');
+    c.style.cssText = 'background:'+row[2]+';border-radius:10px;padding:14px 16px';
+    c.innerHTML = '<div style="font-weight:700;font-size:22px;color:'+row[3]+';margin-bottom:2px">'+row[1]+'</div>'
+      + '<div style="font-size:11px;color:'+row[3]+';opacity:.7">'+row[0]+'</div>';
+    statsGrid.appendChild(c);
+  });
+  box.appendChild(statsGrid);
+
+  // Liste des entretiens (lecture seule)
+  const statusBg = {'En cours':'var(--cyan-light);color:var(--navy)','En attente':'#fff8e8;color:#b07800','Offre reçue':'var(--green-light);color:var(--green)','Refus':'#fff0f0;color:#e74c3c'};
+  const etapeBg  = {'Premier contact':'#e8f0fe','Entretien RH':'#f0e8fe','Entretien manager':'#e8f8fe','Cas pratique':'#fff8e8','Offre':'var(--green-light)'};
+
+  interviews.forEach(function(iv) {
+    const card = document.createElement('div');
+    card.style.cssText = 'background:var(--off-white);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:10px';
+
+    const stars = '★'.repeat(iv.ressenti||0) + '☆'.repeat(5-(iv.ressenti||0));
+    const dateStr = iv.date_entretien ? new Date(iv.date_entretien).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}) : '—';
+    const sColor = statusBg[iv.statut] || 'var(--gray-light);color:var(--text-muted)';
+    const eColor = etapeBg[iv.etape] || 'var(--gray-light)';
+
+    // Header carte
+    const cardHdr = document.createElement('div');
+    cardHdr.style.cssText = 'padding:14px 18px;display:flex;align-items:center;justify-content:space-between;background:white;border-bottom:1px solid var(--border)';
+    const left = document.createElement('div');
+    left.innerHTML = '<div style="font-weight:700;font-size:14px;color:var(--navy);margin-bottom:2px">'+iv.entreprise+'</div>'
+      + '<div style="font-size:12px;color:var(--text-muted)">'+(iv.poste||'')+(iv.secteur?' · '+iv.secteur:'')+'</div>';
+    const right = document.createElement('div');
+    right.style.cssText = 'display:flex;align-items:center;gap:8px';
+    const statusBadge = document.createElement('span');
+    statusBadge.style.cssText = 'font-size:11px;padding:3px 10px;border-radius:20px;font-weight:500;background:'+sColor.split(';')[0]+';'+sColor.split(';')[1];
+    statusBadge.textContent = iv.statut || 'En cours';
+    right.appendChild(statusBadge);
+    cardHdr.appendChild(left);
+    cardHdr.appendChild(right);
+    card.appendChild(cardHdr);
+
+    // Infos
+    const info = document.createElement('div');
+    info.style.cssText = 'padding:12px 18px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px';
+    info.innerHTML = '<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:3px">Date</div><div style="font-size:12px;color:var(--navy)">'+dateStr+'</div></div>'
+      + '<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:3px">Étape</div><span style="font-size:11px;display:inline-flex;padding:2px 8px;border-radius:20px;background:'+eColor+';color:var(--navy)">'+(iv.etape||'—')+'</span></div>'
+      + '<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:3px">Ressenti</div><div style="font-size:13px;color:#f0a000">'+stars+'</div></div>';
+    card.appendChild(info);
+
+    if (iv.points_positifs || iv.difficultes) {
+      const details = document.createElement('div');
+      details.style.cssText = 'padding:0 18px 12px;display:grid;grid-template-columns:1fr 1fr;gap:10px';
+      if(iv.points_positifs) details.innerHTML += '<div style="background:var(--green-light);border-radius:6px;padding:8px 10px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--green);margin-bottom:3px">Points positifs</div><div style="font-size:12px;color:#0a4a3a;line-height:1.5">'+iv.points_positifs+'</div></div>';
+      if(iv.difficultes) details.innerHTML += '<div style="background:#fff8e8;border-radius:6px;padding:8px 10px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#b07800;margin-bottom:3px">Difficultés</div><div style="font-size:12px;color:#5a4010;line-height:1.5">'+iv.difficultes+'</div></div>';
+      card.appendChild(details);
+    }
+
+    if (iv.prochaine_etape) {
+      const next = document.createElement('div');
+      next.style.cssText = 'padding:0 18px 12px';
+      next.innerHTML = '<div style="background:var(--cyan-light);border-left:3px solid var(--cyan);border-radius:0 6px 6px 0;padding:7px 10px;font-size:12px;color:var(--navy)"><strong>Prochaine étape :</strong> '+iv.prochaine_etape+'</div>';
+      card.appendChild(next);
+    }
+
+    box.appendChild(card);
+  });
 }
 
 function toggleSidebar(){const s=document.querySelector('.sidebar'),o=document.getElementById('sidebarOverlay');s.classList.toggle('open');o.classList.toggle('open');document.body.style.overflow=s.classList.contains('open')?'hidden':'';}
