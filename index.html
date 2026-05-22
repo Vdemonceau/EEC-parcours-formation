@@ -435,35 +435,159 @@ const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const FICHES={comet:'https://lumkeksqyfowqbkcmncc.supabase.co/storage/v1/object/public/fiches/comet.pdf.pdf',fursac:'https://lumkeksqyfowqbkcmncc.supabase.co/storage/v1/object/public/fiches/fursac.pdf.pdf',alterfood:'https://lumkeksqyfowqbkcmncc.supabase.co/storage/v1/object/public/fiches/Fiche_Alterfood.pdf'};
 const COACH_EMAILS=['valentin.demonceau@eec-paris.com','kenza@eec-paris.com','nathalie.ciaraldi@eec-paris.com'];
 
-async function sendRelance(){
-  const btn=document.getElementById('relanceBtn');
+async function openRelanceModal(){
   if(!state.user||!isCoach(state.user.email)){alert('Action réservée aux coachs.');return;}
-  const confirmed=confirm('Envoyer un email de relance à tous les alternants qui n\'ont pas terminé le parcours ?\n\nCette action enverra immédiatement les emails.');
+  
+  // Récupérer la liste des alternants non-terminés
+  let students=[];
+  try{
+    const [{data:users},{data:progress},{data:answers}]=await Promise.all([
+      sb.from('users').select('*'),
+      sb.from('progress').select('*'),
+      sb.from('answers').select('user_email,submitted_at').order('submitted_at',{ascending:false})
+    ]);
+    
+    // Compter les modules complétés par alternant
+    const completedByEmail={};
+    (progress||[]).forEach(p=>{
+      if(p.completed){
+        completedByEmail[p.user_email]=(completedByEmail[p.user_email]||0)+1;
+      }
+    });
+    
+    // Dernière activité par alternant
+    const lastActivityByEmail={};
+    (answers||[]).forEach(a=>{
+      if(!lastActivityByEmail[a.user_email]){
+        lastActivityByEmail[a.user_email]=a.submitted_at;
+      }
+    });
+    
+    // Filtrer : non-coachs ET strictement moins de 10 modules
+    students=(users||[]).filter(u=>{
+      if(COACH_EMAILS.includes(u.email.toLowerCase())) return false;
+      const n=completedByEmail[u.email]||0;
+      return n<10;
+    }).map(u=>{
+      const n=completedByEmail[u.email]||0;
+      const last=lastActivityByEmail[u.email];
+      return {
+        email:u.email,
+        name:u.name||u.email.split('@')[0],
+        completed:n,
+        status:n===0?'Pas commencé':'En cours',
+        lastActivity:last,
+        lastActivityStr:last?new Date(last).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}):'Jamais',
+        daysSince:last?Math.floor((Date.now()-new Date(last).getTime())/86400000):9999
+      };
+    });
+    
+    // Tri : les plus inactifs en premier (daysSince décroissant), puis par modules complétés croissants
+    students.sort((a,b)=>{
+      if(b.daysSince!==a.daysSince) return b.daysSince-a.daysSince;
+      return a.completed-b.completed;
+    });
+  }catch(e){
+    alert('Erreur lors du chargement : '+e.message);
+    return;
+  }
+  
+  if(students.length===0){
+    alert('🎉 Aucun alternant à relancer ! Tous ont complété au moins 10 modules.');
+    return;
+  }
+  
+  // Créer la modale
+  const modal=document.createElement('div');
+  modal.id='relanceModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(13,21,92,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px';
+  modal.innerHTML=`
+    <div style="background:white;border-radius:14px;max-width:720px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,0.25)">
+      <div style="padding:24px 28px 16px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
+          <div>
+            <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:20px;text-transform:uppercase;color:var(--navy);margin-bottom:6px">Relancer les alternants</div>
+            <div style="font-size:13px;color:var(--text-muted)">Sélectionne les alternants à relancer par email. <strong>${students.length}</strong> alternant${students.length>1?'s':''} avec moins de 10 modules complétés.</div>
+          </div>
+          <button onclick="closeRelanceModal()" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--text-muted);padding:0;line-height:1">&times;</button>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:16px;align-items:center">
+          <button onclick="toggleAllRelance(true)" style="background:var(--off-white);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--navy);font-family:'GopherDisplay',sans-serif">Tout sélectionner</button>
+          <button onclick="toggleAllRelance(false)" style="background:var(--off-white);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--navy);font-family:'GopherDisplay',sans-serif">Tout désélectionner</button>
+          <div style="margin-left:auto;font-size:13px;color:var(--navy);font-weight:600"><span id="relanceCount">0</span> sélectionné${students.length>1?'s':''}</div>
+        </div>
+      </div>
+      <div style="overflow-y:auto;flex:1;padding:8px 0">
+        ${students.map((s,i)=>`
+          <label for="relanceCheck_${i}" style="display:flex;align-items:center;gap:14px;padding:12px 28px;cursor:pointer;border-bottom:1px solid var(--off-white);transition:background .1s" onmouseover="this.style.background='var(--off-white)'" onmouseout="this.style.background='white'">
+            <input type="checkbox" id="relanceCheck_${i}" data-email="${s.email}" onchange="updateRelanceCount()" style="width:18px;height:18px;cursor:pointer;accent-color:var(--navy);flex-shrink:0">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;color:var(--navy);font-size:14px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.name}</div>
+              <div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.email}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="display:inline-block;padding:3px 10px;background:${s.status==='Pas commencé'?'#ffe5e5':'#fff3cd'};color:${s.status==='Pas commencé'?'#c41e3a':'#856404'};border-radius:12px;font-size:11px;font-weight:600;margin-bottom:4px">${s.status}</div>
+              <div style="font-size:12px;color:var(--text-muted)">${s.completed}/11 modules &middot; ${s.lastActivity?'il y a '+s.daysSince+'j':'Jamais connecté'}</div>
+            </div>
+          </label>
+        `).join('')}
+      </div>
+      <div style="padding:18px 28px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;background:var(--off-white);border-radius:0 0 14px 14px">
+        <button onclick="closeRelanceModal()" style="background:white;border:1px solid var(--border);border-radius:8px;padding:10px 18px;font-size:13px;cursor:pointer;color:var(--navy);font-family:'GopherDisplay',sans-serif">Annuler</button>
+        <button onclick="sendRelance()" id="sendRelanceBtn" style="background:var(--navy);border:1px solid var(--navy);border-radius:8px;padding:10px 20px;font-size:13px;cursor:pointer;color:var(--cyan);font-family:'GopherDisplay',sans-serif;font-weight:600">&#9993; Envoyer la relance</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function closeRelanceModal(){
+  const m=document.getElementById('relanceModal');
+  if(m) m.remove();
+}
+
+function toggleAllRelance(checked){
+  document.querySelectorAll('#relanceModal input[type=checkbox]').forEach(cb=>cb.checked=checked);
+  updateRelanceCount();
+}
+
+function updateRelanceCount(){
+  const n=document.querySelectorAll('#relanceModal input[type=checkbox]:checked').length;
+  const el=document.getElementById('relanceCount');
+  if(el) el.textContent=n;
+}
+
+async function sendRelance(){
+  const checked=document.querySelectorAll('#relanceModal input[type=checkbox]:checked');
+  if(checked.length===0){alert('Aucun alternant sélectionné.');return;}
+  const emails=Array.from(checked).map(cb=>cb.dataset.email);
+  
+  const confirmed=confirm('Envoyer un email de relance à '+emails.length+' alternant'+(emails.length>1?'s':'')+' ?');
   if(!confirmed) return;
+  
+  const btn=document.getElementById('sendRelanceBtn');
   const originalText=btn.innerHTML;
   btn.disabled=true;btn.style.opacity='0.6';btn.style.cursor='wait';
   btn.innerHTML='&#9203; Envoi en cours...';
+  
   try{
     const res=await fetch('https://lumkeksqyfowqbkcmncc.supabase.co/functions/v1/send-relance',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_KEY},
-      body:JSON.stringify({coach_email:state.user.email})
+      body:JSON.stringify({coach_email:state.user.email,emails:emails})
     });
     const result=await res.json();
     if(!res.ok){throw new Error(result.error||'Erreur lors de l\'envoi');}
-    if(result.sent===0){
-      alert('✅ '+(result.message||'Tous les alternants ont terminé !'));
-    } else {
-      let msg='✅ '+result.sent+' email(s) de relance envoyé(s) sur '+result.total+' alternant(s) inactif(s).';
-      if(result.errors&&result.errors.length>0){
-        msg+='\n\n⚠️ '+result.errors.length+' erreur(s) :\n'+result.errors.slice(0,5).join('\n');
-      }
-      alert(msg);
+    
+    let msg='✅ '+result.sent+' email(s) de relance envoyé(s) sur '+emails.length+' sélectionné(s).';
+    if(result.errors&&result.errors.length>0){
+      msg+='\n\n⚠️ '+result.errors.length+' erreur(s) :\n'+result.errors.slice(0,5).join('\n');
     }
+    alert(msg);
+    closeRelanceModal();
   }catch(e){
     alert('❌ Erreur : '+e.message+'\n\nVérifie que la Edge Function est bien déployée et que le domaine Resend est validé.');
     console.error('Relance error:',e);
-  }finally{
     btn.disabled=false;btn.style.opacity='1';btn.style.cursor='pointer';
     btn.innerHTML=originalText;
   }
@@ -874,7 +998,7 @@ async function renderCoachView(){
   el.innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px">
       <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:22px;text-transform:uppercase;color:var(--navy)">Tableau de bord</div>
-      <div style="display:flex;gap:8px"><button onclick="sendRelance()" id="relanceBtn" style="background:var(--cyan);border:1px solid var(--cyan);border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;color:var(--navy);font-family:'GopherDisplay',sans-serif;font-weight:600">&#9993; Relancer les inactifs</button><button onclick="renderCoachView()" style="background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;color:var(--navy);font-family:'GopherDisplay',sans-serif">&#8635; Actualiser</button></div>
+      <div style="display:flex;gap:8px"><button onclick="openRelanceModal()" id="relanceBtn" style="background:var(--cyan);border:1px solid var(--cyan);border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;color:var(--navy);font-family:'GopherDisplay',sans-serif;font-weight:600">&#9993; Relancer les inactifs</button><button onclick="renderCoachView()" style="background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;color:var(--navy);font-family:'GopherDisplay',sans-serif">&#8635; Actualiser</button></div>
     </div>
     <div id="coachStatsGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px">
       ${[['Inscrits',total,'all'],['En cours',inProgress,'En cours'],['Termin\u00e9s',done,'Termin\u00e9'],['Pas commenc\u00e9',notStarted,'Pas commenc\u00e9']].map(([l,n,f],ai)=>`
