@@ -601,12 +601,16 @@ function navClick(i){
     const maxUnlocked=state.completedModules.size>0?Math.max(...state.completedModules)+1:0;
     if(i>maxUnlocked&&!state.completedModules.has(i))return;
   }
-  // Cacher le carnet si ouvert
+  // Cacher les vues carnet et pulse si ouvertes
   const cv=document.getElementById('carnetView');
-  if(cv) cv.style.display='none';
-  // Réinitialiser le bouton carnet
+  if(cv) cv.classList.add('hidden');
+  const pv=document.getElementById('pulseView');
+  if(pv) pv.classList.add('hidden');
+  // Réinitialiser les boutons carnet et pulse
   const cb=document.getElementById('carnetBtn');
   if(cb){ cb.style.background='rgba(114,228,229,.08)'; cb.style.borderLeftColor='transparent'; }
+  const pb=document.getElementById('pulseBtn');
+  if(pb){ pb.style.background='rgba(255,255,255,.04)'; pb.style.borderLeftColor='transparent'; }
   // Afficher la vue élève
   document.getElementById('studentView').classList.remove('hidden');
   state.currentModule=i;buildNav();renderModule(i);
@@ -801,6 +805,14 @@ function setView(v){
   document.getElementById('studentView').classList.toggle('hidden',v!=='student');
   const hb=document.getElementById('helpBtn');if(hb)hb.style.display=v==='coach'?'none':'';
   document.getElementById('coachView').classList.toggle('hidden',v!=='coach');
+  // Cacher les vues carnet et pulse
+  const cv=document.getElementById('carnetView'); if(cv) cv.classList.add('hidden');
+  const pv=document.getElementById('pulseView'); if(pv) pv.classList.add('hidden');
+  // Reset des boutons sidebar
+  const cb=document.getElementById('carnetBtn');
+  if(cb){ cb.style.background='rgba(114,228,229,.08)'; cb.style.borderLeftColor='transparent'; }
+  const pb=document.getElementById('pulseBtn');
+  if(pb){ pb.style.background='rgba(255,255,255,.04)'; pb.style.borderLeftColor='transparent'; }
   if(v==='coach')renderCoachView();
 }
 
@@ -860,10 +872,10 @@ async function renderCoachView(){
     </div>
     <div id="coachStatsGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px">
       ${[['Inscrits',total,'all'],['En cours',inProgress,'En cours'],['Termin\u00e9s',done,'Termin\u00e9'],['Pas commenc\u00e9',notStarted,'Pas commenc\u00e9']].map(([l,n,f],ai)=>`
-        <div onclick="filterCoachTable('${f}')" style="background:${ai===3?'var(--navy)':'white'};border:2px solid ${ai===3?'var(--cyan)':'var(--border)'};border-radius:12px;padding:18px 20px;cursor:pointer;transition:transform .15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
-          <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:28px;color:${ai===3?'var(--cyan)':'var(--navy)'};margin-bottom:4px">${n}</div>
-          <div style="font-size:12px;color:${ai===3?'rgba(255,255,255,.5)':'var(--text-muted)'}">Alternants ${l}</div>
-          <div style="font-size:10px;margin-top:4px;color:${ai===3?'rgba(255,255,255,.25)':'#c0c4d8'}">&#8593; Filtrer</div>
+        <div class="coach-stat-card" data-filter="${f}" onclick="filterCoachTable('${f}')" style="background:${ai===0?'var(--navy)':'white'};border:2px solid ${ai===0?'var(--cyan)':'var(--border)'};border-radius:12px;padding:18px 20px;cursor:pointer;transition:transform .15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:28px;color:${ai===0?'var(--cyan)':'var(--navy)'};margin-bottom:4px">${n}</div>
+          <div style="font-size:12px;color:${ai===0?'rgba(255,255,255,.5)':'var(--text-muted)'}">Alternants ${l}</div>
+          <div style="font-size:10px;margin-top:4px;color:${ai===0?'rgba(255,255,255,.25)':'#c0c4d8'}">&#8593; Filtrer</div>
         </div>`).join('')}
     </div>
     <div id="coachAlertsBlock" style="margin-bottom:24px"></div>
@@ -873,9 +885,9 @@ async function renderCoachView(){
       <input type="text" id="coachSearch" placeholder="Rechercher..." oninput="searchCoach(this.value)" style="border:1px solid var(--border);border-radius:7px;padding:6px 12px;font-size:13px;font-family:'GopherDisplay',sans-serif;color:var(--navy);outline:none;width:200px">
       </div>
       <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:560px">
-        <thead><tr>${['Alternant','Progression','Statut','Derni&egrave;re activit&eacute;','Actions'].map(h=>`<th style="text-align:left;padding:10px 16px;font-family:'Gopher',sans-serif;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);background:var(--off-white);border-bottom:1px solid var(--border)">${h}</th>`).join('')}</tr></thead>
+        <thead><tr>${['Alternant','Progression','Statut','Derni&egrave;re activit&eacute;','Carnet de bord','Actions'].map(h=>`<th style="text-align:left;padding:10px 16px;font-family:'Gopher',sans-serif;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);background:var(--off-white);border-bottom:1px solid var(--border)">${h}</th>`).join('')}</tr></thead>
         <tbody id="coachTableBody">
-        ${total===0?`<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-muted)">Aucun alternant inscrit pour l&apos;instant</td></tr>`:students.map(s=>{
+        ${total===0?`<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">Aucun alternant inscrit pour l&apos;instant</td></tr>`:students.map(s=>{
           const pct=Math.round(s.progress/MODULES.length*100);
           const bc=s.status==='Termin\u00e9'?'background:#e0f9f4;color:#00b894':s.status==='En cours'?'background:var(--cyan-light);color:var(--navy)':'background:var(--gray-light);color:var(--text-muted)';
           return `<tr data-status="${s.status}" data-email="${s.email}" data-name="${s.name}" style="border-bottom:1px solid var(--gray-light)">
@@ -884,7 +896,14 @@ async function renderCoachView(){
             <td style="padding:12px 16px"><span style="display:inline-flex;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;${bc}">${s.status}</span></td>
             <td style="padding:12px 16px;font-size:12px;color:var(--text-muted)">${s.lastActivity}</td>
             <td style="padding:12px 16px">
-              ${s.ivTotal>0?`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-size:13px;font-weight:600;color:var(--navy)">${s.ivTotal}</span><span style="font-size:11px;color:var(--text-muted)">entretien${s.ivTotal>1?'s':''}</span>${s.ivOffres>0?`<span style="background:var(--green-light);color:var(--green);font-size:10px;padding:2px 6px;border-radius:10px">${s.ivOffres} offre${s.ivOffres>1?'s':''}</span>`:''}<button data-carnet-email="${s.email}" data-carnet-name="${s.name}" style="background:var(--cyan-light);border:1px solid var(--cyan);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--navy);cursor:pointer">Voir</button></div>`:'<span style="font-size:12px;color:var(--text-muted)">—</span>'}</td>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                ${s.appsTotal>0?`<span style="font-size:13px;font-weight:600;color:var(--navy)">${s.appsTotal}</span><span style="font-size:11px;color:var(--text-muted)">candidature${s.appsTotal>1?'s':''}</span>`:''}
+                ${s.ivTotal>0?`<span style="background:var(--cyan-light);color:var(--navy);font-size:10px;padding:2px 6px;border-radius:10px">${s.ivTotal} entretien${s.ivTotal>1?'s':''}</span>`:''}
+                ${s.ivOffres>0?`<span style="background:var(--green-light);color:var(--green);font-size:10px;padding:2px 6px;border-radius:10px">${s.ivOffres} offre${s.ivOffres>1?'s':''}</span>`:''}
+                ${s.lastPulse?`<span style="background:#fff8e8;color:#b07800;font-size:10px;padding:2px 6px;border-radius:10px" title="Dernier pulse rempli">&#128202;</span>`:''}
+                <button data-carnet-email="${s.email}" data-carnet-name="${s.name}" style="background:var(--navy);color:var(--cyan);border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-family:'GopherDisplay',sans-serif;font-weight:600;cursor:pointer;letter-spacing:.05em;text-transform:uppercase">Carnet</button>
+              </div>
+            </td>
             <td style="padding:12px 16px">
   <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
     ${s.answers&&s.answers.length>0?`<button onclick="showAnswers('${s.email}')" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--navy);cursor:pointer">Voir (${[...new Set(s.answers.map(a=>a.module_id))].length} modules)</button>`:''}
@@ -1171,6 +1190,18 @@ function filterCoachTable(filter){
   rows.forEach(r=>{const show=filter==='all'||r.getAttribute('data-status')===filter;r.style.display=show?'':'none';if(show)count++;});
   const title=document.getElementById('coachTableTitle');
   if(title)title.textContent=filter==='all'?`Tous les alternants (${rows.length})`:`${filter} (${count})`;
+  // Mettre à jour le style actif des 4 cartes
+  document.querySelectorAll('.coach-stat-card').forEach(card => {
+    const isActive = card.getAttribute('data-filter') === filter;
+    card.style.background = isActive ? 'var(--navy)' : 'white';
+    card.style.borderColor = isActive ? 'var(--cyan)' : 'var(--border)';
+    const num = card.children[0];
+    const lbl = card.children[1];
+    const sub = card.children[2];
+    if (num) num.style.color = isActive ? 'var(--cyan)' : 'var(--navy)';
+    if (lbl) lbl.style.color = isActive ? 'rgba(255,255,255,.5)' : 'var(--text-muted)';
+    if (sub) sub.style.color = isActive ? 'rgba(255,255,255,.25)' : '#c0c4d8';
+  });
 }
 
 function showAnswers(email){
