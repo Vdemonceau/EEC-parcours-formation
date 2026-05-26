@@ -434,165 +434,6 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const FICHES={comet:'https://lumkeksqyfowqbkcmncc.supabase.co/storage/v1/object/public/fiches/comet.pdf.pdf',fursac:'https://lumkeksqyfowqbkcmncc.supabase.co/storage/v1/object/public/fiches/fursac.pdf.pdf',alterfood:'https://lumkeksqyfowqbkcmncc.supabase.co/storage/v1/object/public/fiches/Fiche_Alterfood.pdf'};
 const COACH_EMAILS=['valentin.demonceau@eec-paris.com','kenza@eec-paris.com','nathalie.ciaraldi@eec-paris.com'];
-
-async function openRelanceModal(){
-  if(!state.user||!isCoach(state.user.email)){alert('Action réservée aux coachs.');return;}
-  
-  // Récupérer la liste des alternants non-terminés
-  let students=[];
-  try{
-    const [{data:users},{data:progress},{data:answers}]=await Promise.all([
-      sb.from('users').select('*'),
-      sb.from('progress').select('*'),
-      sb.from('answers').select('user_email,submitted_at').order('submitted_at',{ascending:false})
-    ]);
-    
-    // Compter les modules complétés par alternant
-    const completedByEmail={};
-    (progress||[]).forEach(p=>{
-      if(p.completed){
-        completedByEmail[p.user_email]=(completedByEmail[p.user_email]||0)+1;
-      }
-    });
-    
-    // Dernière activité par alternant
-    const lastActivityByEmail={};
-    (answers||[]).forEach(a=>{
-      if(!lastActivityByEmail[a.user_email]){
-        lastActivityByEmail[a.user_email]=a.submitted_at;
-      }
-    });
-    
-    // Filtrer : non-coachs ET strictement moins de 10 modules
-    students=(users||[]).filter(u=>{
-      if(COACH_EMAILS.includes(u.email.toLowerCase())) return false;
-      const n=completedByEmail[u.email]||0;
-      return n<10;
-    }).map(u=>{
-      const n=completedByEmail[u.email]||0;
-      const last=lastActivityByEmail[u.email];
-      return {
-        email:u.email,
-        name:u.name||u.email.split('@')[0],
-        completed:n,
-        status:n===0?'Pas commencé':'En cours',
-        lastActivity:last,
-        lastActivityStr:last?new Date(last).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}):'Jamais',
-        daysSince:last?Math.floor((Date.now()-new Date(last).getTime())/86400000):9999
-      };
-    });
-    
-    // Tri : les plus inactifs en premier (daysSince décroissant), puis par modules complétés croissants
-    students.sort((a,b)=>{
-      if(b.daysSince!==a.daysSince) return b.daysSince-a.daysSince;
-      return a.completed-b.completed;
-    });
-  }catch(e){
-    alert('Erreur lors du chargement : '+e.message);
-    return;
-  }
-  
-  if(students.length===0){
-    alert('🎉 Aucun alternant à relancer ! Tous ont complété au moins 10 modules.');
-    return;
-  }
-  
-  // Créer la modale
-  const modal=document.createElement('div');
-  modal.id='relanceModal';
-  modal.style.cssText='position:fixed;inset:0;background:rgba(13,21,92,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px';
-  modal.innerHTML=`
-    <div style="background:white;border-radius:14px;max-width:720px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,0.25)">
-      <div style="padding:24px 28px 16px;border-bottom:1px solid var(--border)">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
-          <div>
-            <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:20px;text-transform:uppercase;color:var(--navy);margin-bottom:6px">Relancer les alternants</div>
-            <div style="font-size:13px;color:var(--text-muted)">Sélectionne les alternants à relancer par email. <strong>${students.length}</strong> alternant${students.length>1?'s':''} avec moins de 10 modules complétés.</div>
-          </div>
-          <button onclick="closeRelanceModal()" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--text-muted);padding:0;line-height:1">&times;</button>
-        </div>
-        <div style="display:flex;gap:10px;margin-top:16px;align-items:center">
-          <button onclick="toggleAllRelance(true)" style="background:var(--off-white);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--navy);font-family:'GopherDisplay',sans-serif">Tout sélectionner</button>
-          <button onclick="toggleAllRelance(false)" style="background:var(--off-white);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--navy);font-family:'GopherDisplay',sans-serif">Tout désélectionner</button>
-          <div style="margin-left:auto;font-size:13px;color:var(--navy);font-weight:600"><span id="relanceCount">0</span> sélectionné${students.length>1?'s':''}</div>
-        </div>
-      </div>
-      <div style="overflow-y:auto;flex:1;padding:8px 0">
-        ${students.map((s,i)=>`
-          <label for="relanceCheck_${i}" style="display:flex;align-items:center;gap:14px;padding:12px 28px;cursor:pointer;border-bottom:1px solid var(--off-white);transition:background .1s" onmouseover="this.style.background='var(--off-white)'" onmouseout="this.style.background='white'">
-            <input type="checkbox" id="relanceCheck_${i}" data-email="${s.email}" onchange="updateRelanceCount()" style="width:18px;height:18px;cursor:pointer;accent-color:var(--navy);flex-shrink:0">
-            <div style="flex:1;min-width:0">
-              <div style="font-weight:600;color:var(--navy);font-size:14px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.name}</div>
-              <div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.email}</div>
-            </div>
-            <div style="text-align:right;flex-shrink:0">
-              <div style="display:inline-block;padding:3px 10px;background:${s.status==='Pas commencé'?'#ffe5e5':'#fff3cd'};color:${s.status==='Pas commencé'?'#c41e3a':'#856404'};border-radius:12px;font-size:11px;font-weight:600;margin-bottom:4px">${s.status}</div>
-              <div style="font-size:12px;color:var(--text-muted)">${s.completed}/11 modules &middot; ${s.lastActivity?'il y a '+s.daysSince+'j':'Jamais connecté'}</div>
-            </div>
-          </label>
-        `).join('')}
-      </div>
-      <div style="padding:18px 28px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;background:var(--off-white);border-radius:0 0 14px 14px">
-        <button onclick="closeRelanceModal()" style="background:white;border:1px solid var(--border);border-radius:8px;padding:10px 18px;font-size:13px;cursor:pointer;color:var(--navy);font-family:'GopherDisplay',sans-serif">Annuler</button>
-        <button onclick="sendRelance()" id="sendRelanceBtn" style="background:var(--navy);border:1px solid var(--navy);border-radius:8px;padding:10px 20px;font-size:13px;cursor:pointer;color:var(--cyan);font-family:'GopherDisplay',sans-serif;font-weight:600">&#9993; Envoyer la relance</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-}
-
-function closeRelanceModal(){
-  const m=document.getElementById('relanceModal');
-  if(m) m.remove();
-}
-
-function toggleAllRelance(checked){
-  document.querySelectorAll('#relanceModal input[type=checkbox]').forEach(cb=>cb.checked=checked);
-  updateRelanceCount();
-}
-
-function updateRelanceCount(){
-  const n=document.querySelectorAll('#relanceModal input[type=checkbox]:checked').length;
-  const el=document.getElementById('relanceCount');
-  if(el) el.textContent=n;
-}
-
-async function sendRelance(){
-  const checked=document.querySelectorAll('#relanceModal input[type=checkbox]:checked');
-  if(checked.length===0){alert('Aucun alternant sélectionné.');return;}
-  const emails=Array.from(checked).map(cb=>cb.dataset.email);
-  
-  const confirmed=confirm('Envoyer un email de relance à '+emails.length+' alternant'+(emails.length>1?'s':'')+' ?');
-  if(!confirmed) return;
-  
-  const btn=document.getElementById('sendRelanceBtn');
-  const originalText=btn.innerHTML;
-  btn.disabled=true;btn.style.opacity='0.6';btn.style.cursor='wait';
-  btn.innerHTML='&#9203; Envoi en cours...';
-  
-  try{
-    const res=await fetch('https://lumkeksqyfowqbkcmncc.supabase.co/functions/v1/send-relance',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_KEY},
-      body:JSON.stringify({coach_email:state.user.email,emails:emails})
-    });
-    const result=await res.json();
-    if(!res.ok){throw new Error(result.error||'Erreur lors de l\'envoi');}
-    
-    let msg='✅ '+result.sent+' email(s) de relance envoyé(s) sur '+emails.length+' sélectionné(s).';
-    if(result.errors&&result.errors.length>0){
-      msg+='\n\n⚠️ '+result.errors.length+' erreur(s) :\n'+result.errors.slice(0,5).join('\n');
-    }
-    alert(msg);
-    closeRelanceModal();
-  }catch(e){
-    alert('❌ Erreur : '+e.message+'\n\nVérifie que la Edge Function est bien déployée et que le domaine Resend est validé.');
-    console.error('Relance error:',e);
-    btn.disabled=false;btn.style.opacity='1';btn.style.cursor='pointer';
-    btn.innerHTML=originalText;
-  }
-}
-
 function isCoach(email){return COACH_EMAILS.includes((email||'').toLowerCase().trim());}
 const MODULES = [{"num": 0, "id": "m0", "emoji": "🏆", "title": "Les 3 règles d'or", "subtitle": "pour réussir ses entretiens", "duree": "40 min", "loom": "https://www.loom.com/embed/aeb69a4e29d24a1e9f041f8647bb33a6", "slides": [{"heading": "Ce que les recruteurs recherchent", "items": ["Respect et fiabilité : ponctualité, posture, tenue professionnelle", "Énergie : ton positif et enthousiaste", "Motivation : tu es bien préparé, tu sais pourquoi tu es là", "Curiosité : tu as fait des recherches, tu poses des questions pertinentes", "Clarté : réponses structurées et concises", "Potentiel commercial : écoute, résilience, relationnel, discipline"]}, {"heading": "Règle #1 — Se renseigner sur l'entreprise", "items": ["Comprendre ce que l'entreprise vend et à qui", "Identifier 3 raisons précises pour lesquelles elle t'attire", "Savoir expliquer en une phrase simple ce que fait l'entreprise", "Préparer 2-3 questions pertinentes à poser en entretien"]}, {"heading": "Règle #2 — Préparer ses réponses", "items": ["Il n'y a pas de surprises en entretien : pitch, motivations, compétences", "Préparer des réponses précises à chaque question classique", "Adapter chaque réponse à l'entreprise et au poste visé", "Faire le lien entre leur besoin et ton parcours"]}, {"heading": "Règle #3 — S'entraîner !", "items": ["S'entraîner à voix haute, plusieurs fois, jusqu'à ce que ce soit fluide", "Faire 3 répétitions par sujet", "Se filmer, se chronométrer", "Reprendre les points d'amélioration et ajuster immédiatement"]}], "questions": [{"q": "Selon toi, quelles sont les 3 qualités qu'un recruteur recherche en priorité ?", "hint": "Appuie-toi sur ce que tu viens de voir dans le module"}, {"q": "Quelle règle d'or te semble la plus difficile à appliquer ? Pourquoi ?", "hint": "Sois honnête — c'est pour t'aider à progresser"}, {"q": "Sur une échelle de 1 à 5, comment tu évalues ta confiance actuelle en entretien ?", "hint": "Et qu'est-ce qui explique ce chiffre ?"}]}, {"num": 1, "id": "m1", "emoji": "🔍", "title": "Comprendre le besoin", "subtitle": "et adapter sa préparation", "duree": "30 min", "loom": "https://www.loom.com/embed/9e8805d6c585412ab168d6dead5feacb", "slides": [{"heading": "Se renseigner sur l'entreprise", "items": ["Lire la description et parcourir le site", "Regarder ce que l'entreprise vend et à qui", "Lire les posts LinkedIn récents", "Noter la taille, les actualités récentes"]}, {"heading": "Ce qu'on en tire", "items": ["3 raisons précises pour lesquelles l'entreprise t'attire", "Une phrase simple pour expliquer ce que fait l'entreprise", "2-3 questions pertinentes à poser en entretien"]}, {"heading": "Analyser la fiche de poste", "items": ["Lire la fiche de poste très précisément", "Repérer les missions principales", "Noter les compétences recherchées", "Identifier 3 compétences que tu possèdes déjà"]}, {"heading": "À toi de jouer !", "items": ["Choisis une des 3 fiches de postes disponibles", "Comet Meetings, Fursac ou Alterfood", "Tu travailleras avec la même fiche tout au long du parcours"]}], "questions": [{"q": "Pourquoi l'entreprise ? Écris 3 raisons précises pour lesquelles elle t'attire.", "hint": "Basées sur tes recherches — pas de généralités"}, {"q": "Que fait l'entreprise ? Explique en une phrase simple.", "hint": "Ex : « Votre entreprise accompagne… / vend… / aide… »"}, {"q": "Pourquoi le poste ? Identifie 3 vraies raisons pour lesquelles il t'intéresse.", "hint": "Sois spécifique à ce poste, pas générique"}, {"q": "Quelles sont les 3 compétences clés du poste que tu possèdes déjà ?", "hint": "Avec une preuve en une phrase pour chacune"}]}, {"num": 2, "id": "m2", "emoji": "🎤", "title": "Vous présenter", "subtitle": "ou « Le Pitch »", "duree": "40 min", "loom": "https://www.loom.com/embed/aeecbb4fddea4685a911edf64b2f91b3", "slides": [{"heading": "Un bon pitch, c'est un message…", "items": ["Clair → Compréhensible par tous", "Ciblé → Adapté à l'interlocuteur", "Différenciant → Fait ressortir ta singularité", "Authentique → Reste fidèle à qui tu es"]}, {"heading": "La structure du pitch", "items": ["Bonjour, je m'appelle [Prénom] et je suis en formation à l'EEC", "J'ai choisi cette voie parce que [raison principale]", "Au fil de mes expériences, j'ai développé [2-3 compétences clés]", "Aujourd'hui, je souhaite rejoindre [entreprise] parce que [lien avec le poste]"]}, {"heading": "Ajoute une touche de storytelling", "items": ["Choisis une anecdote courte, sincère et concrète", "Ex : « J'ai découvert le goût du commerce en travaillant dans une boutique »", "Le storytelling rend ton parcours vivant et mémorable"]}, {"heading": "Les erreurs fréquentes", "items": ["Réciter son CV — le recruteur l'a déjà lu", "Parler trop longtemps — au-delà de 2 min, on perd l'attention", "Ne pas faire le lien avec le poste", "Manquer d'énergie ou de conviction"]}], "questions": [{"q": "Écris ton pitch de présentation (150-200 mots)", "hint": "Qui tu es, ton parcours, pourquoi tu es là — adapté à la fiche choisie"}, {"q": "Quelle partie te semble la moins naturelle à formuler ?", "hint": "Sois honnête — c'est pour t'aider à progresser"}, {"q": "Comment tu adaptes ta présentation à la fiche de poste choisie ?", "hint": "Quels éléments tu mets davantage en avant ?"}]}, {"num": 3, "id": "m3", "emoji": "💡", "title": "Vos motivations", "subtitle": "pour le poste", "duree": "30 min", "loom": "https://www.loom.com/embed/6948d95980404063bdf1feb259df89cc", "slides": [{"heading": "Ce que le recruteur recherche", "items": ["Ta motivation + ta compréhension du besoin + le match avec ton parcours", "Pas des généralités : « j'aime le challenge » ne convainc personne", "Des raisons liées au secteur, à la taille, au produit, à la culture"]}, {"heading": "Le test du spécifique", "items": ["Est-ce que n'importe qui pourrait dire la même chose ?", "Est-ce que tu aurais pu dire ça à une autre entreprise ?", "Si oui → ta réponse n'est pas assez spécifique", "Creuse : pourquoi ce secteur ? Pourquoi ce produit ?"]}, {"heading": "Insuffisant vs convaincant", "items": ["INSUFFISANT : « J'aime le secteur et le produit »", "CONVAINCANT : « Vos clients sont des PME qui ont besoin de X. J'ai déjà travaillé dans cet environnement »", "La différence : besoin identifié + compétence + preuve + motivation précise"]}, {"heading": "Les trames à utiliser", "items": ["Pourquoi l'entreprise : « Votre entreprise aide __ à __. Ce qui me parle, c'est __ car j'ai déjà __ »", "Pourquoi le poste : « Le rôle consiste à __. C'est un terrain où je suis à l'aise parce que __ »"]}], "questions": [{"q": "Pourquoi cette entreprise ? (version convaincante)", "hint": "Avec un besoin identifié + une compétence + une preuve"}, {"q": "Pourquoi ce poste ? (version convaincante)", "hint": "Missions comprises + trait de personnalité + preuve concrète"}, {"q": "Où te vois-tu dans 3 ans ?", "hint": "Réponse cohérente avec le poste et ton projet professionnel"}]}, {"num": 4, "id": "m4", "emoji": "💪", "title": "Compétences", "subtitle": "et qualités principales", "duree": "20 min", "loom": "https://www.loom.com/embed/5e25239c57cf4708b0d680b6770cc033", "slides": [{"heading": "Ce que le recruteur recherche", "items": ["L'adéquation entre tes compétences et ses besoins", "Des preuves concrètes — pas des affirmations", "Chaque compétence doit être illustrée par un exemple en une phrase"]}, {"heading": "Exemples de preuves", "items": ["Régularité : « Je pratique la musculation 5x/semaine depuis 3 ans »", "Aisance téléphonique : « Je passais 40-70 appels/jour à 5% de RDV pris »", "Capacité à apprendre vite : « En une semaine, j'ai appris Canva sans erreur »", "Persévérance : « J'ai repris le travail jusqu'au bout alors que tout le monde voulait arrêter »"]}, {"heading": "Méthode", "items": ["Lister les compétences recherchées dans la fiche de poste", "Identifier celles que tu possèdes déjà", "Pour chacune : préparer une preuve en une phrase", "Sans preuve, ta réponse ne sera pas convaincante"]}], "questions": [{"q": "Quelles sont tes 3 compétences les plus fortes ?", "hint": "Hard ou soft skills — choisies en lien avec la fiche de poste"}, {"q": "Pour chacune, écris la preuve en une phrase.", "hint": "Une situation précise et concrète"}, {"q": "Quelle compétence tu aurais du mal à prouver ? Comment y remédier ?", "hint": "Être honnête sur ses points faibles, c'est déjà une qualité"}]}, {"num": 5, "id": "m5", "emoji": "🎯", "title": "Centres d'intérêt", "subtitle": "à mettre en avant", "duree": "15 min", "loom": "https://www.loom.com/embed/2b718093605745f0926198e64835d341", "slides": [{"heading": "But du recruteur", "items": ["Obtenir des preuves qui démontrent tes qualités utiles au métier", "Cette question doit renforcer ta candidature, pas la remplir", "Évite : voyage, lecture, passer du temps avec des amis"]}, {"heading": "Activités qui valorisent un profil commercial", "items": ["Sports individuels ou collectifs, engagement associatif", "Compétition (sportive, artistique, e-sport)", "Création de contenus, projets personnels", "Tout ce qui montre énergie, discipline, goût du contact"]}, {"heading": "Comment les présenter", "items": ["Choisir des activités qui illustrent ton énergie et ta discipline", "Préparer une phrase sur ce que l'activité t'a permis d'apprendre", "Relier à des qualités utiles au poste commercial"]}], "questions": [{"q": "Quels centres d'intérêt tu mentionnes en entretien ? Pourquoi ceux-là ?", "hint": "Ceux qui te valorisent professionnellement"}, {"q": "Prépare une phrase pour chaque activité qui montre ce qu'elle dit de ta personnalité.", "hint": "Ex : « Ma pratique de la boxe depuis 3 ans m'a appris la discipline et la gestion du stress »"}, {"q": "Enregistre ta réponse à voix haute à la question \"Parlez-moi de vos centres d'intérêt\"", "hint": "30 à 45 secondes max — parle naturellement, sans lire", "record": true}]}, {"num": 6, "id": "m6", "emoji": "⭐", "title": "Méthode STAR", "subtitle": "parler de ses expériences", "duree": "40 min", "loom": "https://www.loom.com/embed/7d5892d1fb644401ad6909264c080296", "slides": [{"heading": "Le modèle STAR", "items": ["S — Situation : le contexte, l'endroit, la durée, le rôle", "T — Tâches : les missions qui comptent pour un recruteur", "A — Actions : ce que tu as fait concrètement, ce que tu as appris", "R — Résultats : un élément concret ou chiffré, même simple"]}, {"heading": "Erreurs fréquentes", "items": ["Lister toutes ses tâches sans structure", "Décrire l'entreprise au lieu de ses actions", "Faire une réponse trop longue ou trop courte", "Ne pas parler de résultat — c'est la partie la plus importante"]}, {"heading": "Exemple STAR concret", "items": ["S : « Job d'été de 2 mois comme vendeur chez Monoprix »", "T : « Accueillir les clients, gérer la caisse, organiser le rayon »", "A : « Appris à gérer les pics, rester poli sous pression, tenir des objectifs »", "R : « Mon manager m'a confié l'ouverture du magasin car j'étais toujours à l'heure »"]}, {"heading": "Quand utiliser STAR ?", "items": ["« Donne-moi un exemple… »", "« Parle-moi d'une situation où… »", "« Raconte-moi une fois où… »", "→ STAR = réponse obligatoire"]}], "questions": [{"q": "Écris ton STAR pour ta dernière expérience professionnelle.", "hint": "S → T → A → R — 30 à 40 secondes à l'oral"}, {"q": "Prépare un STAR pour une expérience dont tu es fier(e).", "hint": "Même format, résultat obligatoire"}, {"q": "Prépare un STAR pour une expérience difficile.", "hint": "Ce que tu en as appris est aussi important que la situation"}]}, {"num": 7, "id": "m7", "emoji": "🎭", "title": "Mises en situation", "subtitle": "commerciale", "duree": "15 min", "loom": "https://www.loom.com/embed/5c42097b362f417e8f1ce808cb43f1a2", "slides": [{"heading": "5 principes clés", "items": ["#1 : Le commercial commence par comprendre, pas par parler", "#2 : Utiliser des questions ouvertes", "#3 : 70% du temps de parole = le client", "#4 : Face à une objection, il faut creuser", "#5 : Pour vendre, il faut d'abord comprendre le client"]}, {"heading": "Exemple — « Vends-moi ce stylo »", "items": ["MAUVAIS : « Ce stylo est super, il écrit bien… »", "BON : « Avant tout, j'aimerais comprendre : comment tu écris au quotidien ? Quelles sont tes difficultés ? »", "Puis seulement : « Dans ce cas, ce stylo peut t'aider car… »"]}, {"heading": "3 étapes pour structurer ta réponse", "items": ["→ Comprendre : questions ouvertes pour cerner le besoin", "→ Reformuler : valider le besoin avant de proposer", "→ Proposer : arguments adaptés à ta compréhension"]}], "questions": [{"q": "Comment tu aborderais une mise en situation « Vends-moi ce stylo » ?", "hint": "Décris les 3 étapes que tu suivrais"}, {"q": "Comment tu gères l'objection « C'est trop cher » ?", "hint": "Rappel : face à une objection, on creuse"}, {"q": "Quel aspect de la mise en situation te semble le plus difficile ?", "hint": "Honnêteté et plan d'action concret"}]}, {"num": 8, "id": "m8", "emoji": "📞", "title": "Questions & suivi", "subtitle": "post entretien", "duree": "15 min", "loom": "https://www.loom.com/embed/6d11d79972ab4cd09a42d395361ac4d1", "slides": [{"heading": "Questions à poser en fin d'entretien", "items": ["Quels sont les 2-3 critères clés pour réussir rapidement ici ?", "Comment l'entreprise accompagne-t-elle un alternant dans sa montée en compétences ?", "Quels sont les prochains grands défis de votre équipe cette année ?", "Quelles sont vos attentes pour ce poste dans les 3, 6 et 12 prochains mois ?"]}, {"heading": "Et après l'entretien ?", "items": ["Dans les 24h : message de remerciement personnalisé", "Mentionner un point précis de l'échange qui t'a marqué", "Après 5-7 jours sans réponse : relance courte et professionnelle", "Ne jamais disparaître — le suivi fait la différence"]}], "questions": [{"q": "Prépare 3 questions à poser en fin d'entretien pour la fiche de poste choisie.", "hint": "Spécifiques à l'entreprise et au poste — pas ce qui est sur le site"}, {"q": "Rédige ton message de remerciement post-entretien.", "hint": "Court, personnalisé, avec un élément précis de l'échange"}, {"q": "Comment tu relances si tu n'as pas de nouvelles après 7 jours ?", "hint": "Professionnel sans paraître insistant"}]},
 {"num": 9, "id": "m9", "emoji": "✅", "title": "Derniers rappels", "subtitle": "la checklist avant l'entretien", "duree": "20 min", "loom": "https://www.loom.com/embed/550efb88e52f438bb6d9871d7df97aff", "slides": [{"heading": "La vérité sur les entretiens", "items": ["La plupart des candidats sont éliminés non pas à cause de leur CV", "Mais à cause de leur manque de préparation", "De leur communication et de leur posture", "Tout ce que tu as travaillé dans ce parcours fait la différence"]}, {"heading": "Checklist — Avant l'entretien (1/3)", "items": ["J'arrive 10 min en avance (visio ou présentiel)", "Je porte une tenue propre, simple et professionnelle", "J'ai une posture droite, un regard stable, une énergie positive", "J'ai : CV imprimé, carnet, stylo, environnement propre (en visio)"]}, {"heading": "Checklist — La préparation (2/3)", "items": ["Je sais ce que l'entreprise vend, à qui, et ses actualités récentes", "J'ai 3 raisons précises pour lesquelles l'entreprise m'attire", "J'ai analysé la fiche de poste (missions, compétences, outils)", "J'ai 3 compétences clés du poste + une preuve en 1 phrase pour chacune", "Mon pitch est préparé et adapté à l'entreprise et au poste", "J'ai préparé mes STAR : dernière expérience, expérience dont je suis fier(e), expérience difficile"]}, {"heading": "Checklist — Le jour J (3/3)", "items": ["Toutes mes réponses sont spécifiques à cette entreprise et ce poste", "J'ai bien compris les 4 astuces pour les mises en situation commerciale", "J'ai 2-3 questions pertinentes à poser en fin d'entretien", "Je me suis entraîné(e) à voix haute", "Je suis capable de répondre sans lire, de façon fluide"]},{"heading":"La checklist en 20 points","items":["J'arrive 10 min en avance (visio ou présentiel)","Je porte une tenue propre, simple et professionnelle","J'ai une posture droite, un regard stable, une énergie positive","J'ai : CV imprimé, carnet, stylo, environnement propre (en visio)","J'ai fait mes recherches sur l'entreprise : ce qu'elle vend, à qui, ses actualités","J'ai une phrase simple pour expliquer ce que fait l'entreprise","J'ai 3 raisons précises pour lesquelles l'entreprise m'attire","J'ai analysé la fiche de poste (missions, compétences, outils)","J'ai 3 compétences clés du poste + une preuve en 1 phrase pour chacune","J'ai préparé et adapté mon pitch à l'entreprise et au poste","Je fais un lien clair entre leur besoin et mon parcours","J'ai 1-2 activités qui me mettent en valeur + une phrase pour chacune","J'ai mes 3 STAR (dernière exp., exp. dont je suis fier(e), exp. difficile)","J'ai mes STAR compétences (3 clés du poste + 3 compétences autres)","Toutes mes réponses sont spécifiques à l'entreprise et au poste","J'ai compris les 4 astuces pour les mises en situation commerciale","J'ai 2-3 questions pertinentes à poser en fin d'entretien","Je me suis entraîné(e) à voix haute plusieurs fois","Je suis capable de répondre sans lire, de façon fluide","Est-ce que toutes mes réponses sont spécifiques à cette entreprise ?"]}], "questions": [{"q": "Quels sont les 3 points du parcours que tu maîtrises le mieux ?", "hint": "Sois précis — cite les modules ou les techniques"}, {"q": "Quels sont les 2 points sur lesquels tu dois encore progresser avant la mise en situation ?", "hint": "Honnêteté = progrès. Cite les modules à retravailler"}, {"q": "En t'appuyant sur la checklist ci-dessus, combien de cases coches-tu honnêtement ? Qu'est-ce qui manque encore ?", "hint": "Sur 20 — sois précis sur les cases non cochées"}, {"q": "Sur une échelle de 1 à 10, comment tu évalues ce parcours de formation ? Qu'est-ce qui t'a été le plus utile ?", "hint": "Ton retour est précieux pour améliorer le parcours"}]}, {"num": 10, "id": "m10", "emoji": "🎁", "title": "Bonus", "subtitle": "cibler ses candidatures", "duree": "20 min", "loom": "", "slides": [{"heading": "Qualité vs quantité", "items": ["Envoyer 100 CV génériques ne vaut pas 10 candidatures ciblées", "Un message personnalisé montre que tu as lu la fiche de poste", "Le recruteur le remarque immédiatement — et ça fait la différence", "Mieux vaut 5 candidatures soignées que 50 bâclées"]}, {"heading": "Comment cibler intelligemment", "items": ["Le poste correspond à tes compétences actuelles ou en cours d'acquisition", "Le secteur t'intéresse vraiment — tu peux l'expliquer en entretien", "La taille de l'entreprise correspond à ce que tu recherches", "Tu as trouvé au moins 3 raisons précises pour lesquelles cette entreprise t'attire"]}, {"heading": "Le bon processus pour chaque candidature", "items": ["Étape 1 — Lire la fiche de poste en entier, deux fois", "Étape 2 — Visiter le site et les réseaux (LinkedIn, Instagram)", "Étape 3 — Adapter ton pitch et tes motivations à cette entreprise", "Étape 4 — Envoyer une candidature personnalisée", "Étape 5 — Faire un suivi 5-7 jours après si pas de réponse"]}], "questions": [{"q": "Sur combien d'entreprises tu as postulé jusqu'ici ? Combien ont répondu positivement ?", "hint": "Calcule ton taux de réponse — c'est instructif"}, {"q": "Comment tu décides actuellement si une offre vaut la peine d'une candidature ?", "hint": "Décris ton processus actuel honnêtement"}, {"q": "Quels critères tu vas mettre en place pour mieux cibler tes candidatures ?", "hint": "Minimum 3 critères concrets et applicables dès maintenant"}]}];
@@ -968,26 +809,43 @@ async function renderCoachView(){
   el.innerHTML='<div style="text-align:center;padding:60px;color:var(--text-muted)"><div style="font-size:32px;margin-bottom:12px">&#9203;</div>Chargement...</div>';
   let students=[];
   try{
-    const [{data:users},{data:progress},{data:answers},{data:ivData}]=await Promise.all([
+    const [{data:users},{data:progress},{data:answers},{data:appsData},{data:itvData2},{data:pulsesData}]=await Promise.all([
       sb.from('users').select('*').order('created_at',{ascending:false}),
       sb.from('progress').select('*'),
       sb.from('answers').select('*').order('submitted_at',{ascending:false}),
-      sb.from('interviews').select('user_email,statut')
+      sb.from('applications').select('user_email,status'),
+      sb.from('application_interviews').select('user_email,status,rating'),
+      sb.from('pulse_checks').select('*').order('week_start',{ascending:false})
     ]);
     window._allAnswers=answers||[];
-    // Stats carnets par email
-    const ivByEmail={};
-    (ivData||[]).forEach(function(iv){
-      if(!ivByEmail[iv.user_email]) ivByEmail[iv.user_email]={total:0,offres:0};
-      ivByEmail[iv.user_email].total++;
-      if(iv.statut==='Offre reçue') ivByEmail[iv.user_email].offres++;
+    // Stats carnet par email (basé sur applications V2)
+    const appsByEmail={};
+    (appsData||[]).forEach(function(a){
+      if(!appsByEmail[a.user_email]) appsByEmail[a.user_email]={total:0,offres:0,interviewing:0};
+      appsByEmail[a.user_email].total++;
+      if(a.status==='accepted') appsByEmail[a.user_email].offres++;
+      if(['applied','responded','interviewing'].includes(a.status)) appsByEmail[a.user_email].interviewing++;
     });
+    // Stats entretiens par email
+    const itvByEmail={};
+    (itvData2||[]).forEach(function(i){
+      if(!itvByEmail[i.user_email]) itvByEmail[i.user_email]=0;
+      itvByEmail[i.user_email]++;
+    });
+    // Dernier pulse par email
+    const lastPulseByEmail={};
+    (pulsesData||[]).forEach(function(p){
+      if(!lastPulseByEmail[p.user_email]) lastPulseByEmail[p.user_email]=p;
+    });
+    window._allPulses=pulsesData||[];
     students=(users||[]).map(u=>{
       const prog=(progress||[]).filter(p=>p.user_email===u.email&&p.completed);
       const ans=(answers||[]).filter(a=>a.user_email===u.email);
       const last=ans[0];const n=prog.length;
-      var iv=ivByEmail[u.email]||{total:0,offres:0};
-      return {name:u.name||u.email.split('@')[0],email:u.email,progress:n,ivTotal:iv.total,ivOffres:iv.offres,
+      var ap=appsByEmail[u.email]||{total:0,offres:0,interviewing:0};
+      var itvCount=itvByEmail[u.email]||0;
+      var lastP=lastPulseByEmail[u.email]||null;
+      return {name:u.name||u.email.split('@')[0],email:u.email,progress:n,ivTotal:itvCount,ivOffres:ap.offres,appsTotal:ap.total,appsInterviewing:ap.interviewing,lastPulse:lastP,
         status:n>=(MODULES.length-1)?'Termin\u00e9':n>0?'En cours':'Pas commenc\u00e9',
         lastActivity:last?new Date(last.submitted_at).toLocaleDateString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'&mdash;',
         answers:ans};
@@ -998,7 +856,7 @@ async function renderCoachView(){
   el.innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px">
       <div style="font-family:'Gopher',sans-serif;font-weight:700;font-size:22px;text-transform:uppercase;color:var(--navy)">Tableau de bord</div>
-      <div style="display:flex;gap:8px"><button onclick="openRelanceModal()" id="relanceBtn" style="background:var(--cyan);border:1px solid var(--cyan);border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;color:var(--navy);font-family:'GopherDisplay',sans-serif;font-weight:600">&#9993; Relancer les inactifs</button><button onclick="renderCoachView()" style="background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;color:var(--navy);font-family:'GopherDisplay',sans-serif">&#8635; Actualiser</button></div>
+      <button onclick="renderCoachView()" style="background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;color:var(--navy);font-family:'GopherDisplay',sans-serif">&#8635; Actualiser</button>
     </div>
     <div id="coachStatsGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px">
       ${[['Inscrits',total,'all'],['En cours',inProgress,'En cours'],['Termin\u00e9s',done,'Termin\u00e9'],['Pas commenc\u00e9',notStarted,'Pas commenc\u00e9']].map(([l,n,f],ai)=>`
@@ -1008,6 +866,7 @@ async function renderCoachView(){
           <div style="font-size:10px;margin-top:4px;color:${ai===3?'rgba(255,255,255,.25)':'#c0c4d8'}">&#8593; Filtrer</div>
         </div>`).join('')}
     </div>
+    <div id="coachAlertsBlock" style="margin-bottom:24px"></div>
     <div style="background:white;border:1px solid var(--border);border-radius:12px;overflow:hidden">
       <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px">
         <span id="coachTableTitle" style="font-family:'Gopher',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--navy)">Tous les alternants (${total})</span>
@@ -1046,6 +905,44 @@ async function renderCoachView(){
     if (!btn) return;
     showCoachCarnet(btn.getAttribute('data-carnet-email'), btn.getAttribute('data-carnet-name'));
   });
+
+  // Bloc alertes
+  const alertsEl = document.getElementById('coachAlertsBlock');
+  if (alertsEl) {
+    const alerts = [];
+    const twoWeeksAgo = new Date(); twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    const currentWeekStart = getCurrentWeekStart();
+    students.forEach(function(s) {
+      if (s.progress > 0 && (!s.lastPulse || new Date(s.lastPulse.week_start) < twoWeeksAgo)) {
+        alerts.push({ email: s.email, name: s.name, msg: "pas de pulse depuis 2+ semaines", color: "danger" });
+      }
+      if (s.lastPulse && s.lastPulse.motivation && s.lastPulse.motivation < 5 && s.lastPulse.week_start === currentWeekStart) {
+        alerts.push({ email: s.email, name: s.name, msg: "motivation " + s.lastPulse.motivation + "/10 cette semaine", color: "warning" });
+      }
+      if (s.lastPulse && s.lastPulse.coach_question && !s.lastPulse.coach_question_answered) {
+        alerts.push({ email: s.email, name: s.name, msg: "a posé une question dans son pulse", color: "info" });
+      }
+    });
+    if (alerts.length === 0) {
+      alertsEl.innerHTML = '';
+    } else {
+      const colorMap = {
+        danger: { bg: '#fff0f0', color: '#e74c3c', border: '#fcc' },
+        warning: { bg: '#fff8e8', color: '#b07800', border: '#f0d090' },
+        info: { bg: 'var(--cyan-light)', color: 'var(--navy)', border: 'var(--cyan)' }
+      };
+      let html = '<div style="background:white;border:1px solid var(--border);border-radius:12px;padding:16px 20px">';
+      html += '<div style="font-family:\'Gopher\',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--navy);margin-bottom:12px">&#128276; Alertes à traiter (' + alerts.length + ')</div>';
+      html += '<div style="display:flex;flex-direction:column;gap:6px">';
+      alerts.forEach(function(a) {
+        const c = colorMap[a.color];
+        const safeName = (a.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:' + c.bg + ';border:1px solid ' + c.border + ';border-radius:8px;font-size:13px"><span><strong style="color:' + c.color + '">' + a.name + '</strong> <span style="color:var(--text-muted)">·</span> ' + a.msg + '</span><button onclick="showCoachCarnet(\'' + a.email + '\',\'' + safeName + '\')" style="background:white;border:1px solid ' + c.border + ';border-radius:6px;padding:4px 12px;cursor:pointer;font-size:11px;color:' + c.color + ';font-family:inherit;font-weight:600">Voir →</button></div>';
+      });
+      html += '</div></div>';
+      alertsEl.innerHTML = html;
+    }
+  }
 
   // Messages d'aide
   try {
@@ -1358,9 +1255,32 @@ async function sendHelpMessage() {
 }
 
 // ── CARNET DE BORD
+// ============================================================
+// CARNET DE BORD V2 - Candidatures + Entretiens + Pulse Check
+// ============================================================
+
+const APP_STATUSES = {
+  to_apply: { label: 'À candidater', color: '#8890b0', bg: 'var(--gray-light)' },
+  applied: { label: 'Candidaté', color: '#0d155c', bg: 'var(--cyan-light)' },
+  responded: { label: 'Réponse reçue', color: '#b07800', bg: '#fff8e8' },
+  interviewing: { label: 'Entretien programmé', color: '#0d155c', bg: 'var(--cyan-light)' },
+  accepted: { label: 'Accepté', color: 'var(--green)', bg: 'var(--green-light)' },
+  rejected: { label: 'Refus', color: '#e74c3c', bg: '#fff0f0' }
+};
+
+const INTERVIEW_STATUSES = {
+  scheduled: { label: 'Programmé', color: '#0d155c', bg: 'var(--cyan-light)' },
+  done: { label: 'Passé', color: 'var(--green)', bg: 'var(--green-light)' },
+  cancelled: { label: 'Annulé', color: '#8890b0', bg: 'var(--gray-light)' }
+};
+
+const DIFFICULTY_TAGS = ['Motivation', 'Rejet', 'CV', 'Entretien', 'Temps', 'Stress', 'Manque de retours', 'Autre'];
+
+// État local du carnet
+let carnetState = { applications: [], pulses: [], currentAppId: null };
+
 function initCarnet() {
   if (document.getElementById('carnetBtn')) return;
-
   const nav = document.getElementById('navList');
   if (!nav) return;
 
@@ -1372,504 +1292,1159 @@ function initCarnet() {
   btn.id = 'carnetBtn';
   btn.style.cssText = 'display:flex;align-items:center;gap:10px;padding:14px 20px;cursor:pointer;border-left:2px solid transparent;transition:all .15s;background:rgba(114,228,229,.08);margin:8px 10px;border-radius:8px;border:1px solid rgba(114,228,229,.2)';
   btn.innerHTML = '<div style="font-size:18px">&#128218;</div>'
-    + '<div><div style="font-size:9px;letter-spacing:.1em;color:var(--cyan);text-transform:uppercase;font-weight:700;margin-bottom:2px">Nouveau &#10024;</div>'
-    + '<div style="font-size:13px;color:white;font-weight:600">Mon carnet de bord</div></div>';
-  btn.onmouseover = function() { if(this.style.borderLeftColor !== 'rgb(114, 228, 229)') this.style.background = 'rgba(255,255,255,.05)'; };
-  btn.onmouseout  = function() { if(this.style.borderLeftColor !== 'rgb(114, 228, 229)') this.style.background = ''; };
-  btn.onclick     = function() { showCarnet(); };
+    + '<div><div style="font-size:9px;letter-spacing:.1em;color:var(--cyan);text-transform:uppercase;font-weight:700;margin-bottom:2px">Bonus</div>'
+    + '<div style="font-size:13px;color:white;font-weight:600">Carnet de bord</div></div>';
+  btn.onclick = showCarnet;
   sep.after(btn);
+
+  const pulseBtn = document.createElement('div');
+  pulseBtn.id = 'pulseBtn';
+  pulseBtn.style.cssText = 'display:flex;align-items:center;gap:10px;padding:14px 20px;cursor:pointer;border-left:2px solid transparent;transition:all .15s;background:rgba(255,255,255,.04);margin:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.08)';
+  pulseBtn.innerHTML = '<div style="font-size:18px">&#128202;</div>'
+    + '<div><div style="font-size:9px;letter-spacing:.1em;color:var(--cyan);text-transform:uppercase;font-weight:700;margin-bottom:2px">Hebdo</div>'
+    + '<div style="font-size:13px;color:white;font-weight:600">Pulse check</div></div>';
+  pulseBtn.onclick = showPulseCheck;
+  btn.after(pulseBtn);
 }
 
 function showCarnet() {
   document.getElementById('studentView').classList.add('hidden');
-  const cv = document.getElementById('coachView');
-  if(cv) cv.classList.add('hidden');
+  const cv = document.getElementById('coachView'); if(cv) cv.classList.add('hidden');
+  const pv = document.getElementById('pulseView'); if(pv) pv.classList.add('hidden');
 
-  // Réinitialiser style du bouton carnet
   const cb = document.getElementById('carnetBtn');
-  if(cb) { cb.style.background='rgba(114,228,229,.1)'; cb.style.borderLeftColor='#72e4e5'; }
+  if(cb) { cb.style.background='rgba(114,228,229,.18)'; cb.style.borderLeftColor='var(--cyan)'; }
+  const pb = document.getElementById('pulseBtn');
+  if(pb) { pb.style.background='rgba(255,255,255,.04)'; pb.style.borderLeftColor='transparent'; }
 
   let view = document.getElementById('carnetView');
   if (!view) {
     view = document.createElement('div');
     view.id = 'carnetView';
-    view.style.cssText = 'flex:1;padding:36px;max-width:900px';
-    document.querySelector('.main').appendChild(view);
+    view.style.cssText = 'padding:32px 40px;max-width:1100px;margin:0 auto';
+    document.querySelector('main').appendChild(view);
   }
-  view.style.display = 'block';
-  document.getElementById('breadcrumbTitle').textContent = 'Mon carnet de bord';
-  renderCarnet(view);
+  view.classList.remove('hidden');
+  renderCarnet();
 }
 
-async function renderCarnet(el, activeFilter) {
-  activeFilter = activeFilter || 'all';
-  el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted)"><div style="font-size:32px">&#9203;</div><div>Chargement...</div></div>';
+async function renderCarnet() {
+  const view = document.getElementById('carnetView');
+  if (!view) return;
+  view.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted)"><div style="font-size:32px">&#9203;</div><div style="margin-top:8px">Chargement…</div></div>';
 
-  let interviews = [];
   try {
-    const { data } = await sb.from('interviews').select('*').eq('user_email', state.user.email).order('date_entretien',{ascending:false});
-    interviews = data || [];
-  } catch(e) { console.warn('interviews:', e.message); }
+    const { data: apps } = await sb.from('applications').select('*').eq('user_email', state.user.email).order('created_at', { ascending: false });
+    const { data: interviews } = await sb.from('application_interviews').select('*').eq('user_email', state.user.email).order('interview_date', { ascending: true });
 
-  // Filtrer selon activeFilter
-  const toShow = activeFilter === 'all' ? interviews
-    : interviews.filter(function(i){ return i.statut === activeFilter; });
-
-  el.innerHTML = '';
-
-  // Header
-  const hdr = document.createElement('div');
-  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:28px';
-  const title = document.createElement('div');
-  title.style.cssText = 'font-family:GopherDisplay,sans-serif;font-weight:700;font-size:22px;text-transform:uppercase;color:var(--navy)';
-  title.textContent = 'Mon carnet de bord';
-  const addBtn = document.createElement('button');
-  addBtn.style.cssText = 'background:var(--navy);color:white;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;font-family:inherit';
-  addBtn.textContent = '+ Ajouter un entretien';
-  addBtn.onclick = function() { showInterviewForm(null, el); };
-  hdr.appendChild(title);
-  hdr.appendChild(addBtn);
-  el.appendChild(hdr);
-
-  // Stats
-  const total = interviews.length;
-  const enCours = interviews.filter(i=>i.statut==='En cours').length;
-  const offres  = interviews.filter(i=>i.statut==='Offre reçue').length;
-  const refus   = interviews.filter(i=>i.statut==='Refus').length;
-
-  const grid = document.createElement('div');
-  grid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px';
-  var filterKeys = {'Entretiens passés':'all','En cours':'En cours','Offres reçues':'Offre reçue','Refus':'Refus'};
-  [
-    ['Entretiens passés', total,   '#0d155c',           'white'],
-    ['En cours',          enCours, 'var(--cyan-light)', 'var(--navy)'],
-    ['Offres reçues',     offres,  'var(--green-light)','var(--green)'],
-    ['Refus',             refus,   '#fff0f0',           '#e74c3c'],
-  ].forEach(function(row) {
-    var label=row[0], n=row[1], bg=row[2], color=row[3];
-    var fk = filterKeys[label];
-    var isActive = (activeFilter === fk);
-    var c = document.createElement('div');
-    c.style.cssText = 'background:'+bg+';border-radius:12px;padding:18px 20px;cursor:pointer;'
-      + (isActive ? 'outline:3px solid rgba(0,0,0,.3);' : '');
-    c.onmouseover = function(){ this.style.opacity='.85'; };
-    c.onmouseout  = function(){ this.style.opacity='1'; };
-    c.onclick = (function(key, parentEl){ return function(){ renderCarnet(parentEl, key); }; })(fk, el);
-    c.innerHTML = '<div style="font-weight:700;font-size:28px;color:'+color+';margin-bottom:4px">'+n+'</div>'
-                + '<div style="font-size:12px;color:'+color+';opacity:.7">'+label+'</div>'
-                + '<div style="font-size:10px;color:'+color+';opacity:.5;margin-top:4px">&#8593; Filtrer</div>';
-    grid.appendChild(c);
-  });
-  el.appendChild(grid);
-
-  // Liste
-  if (toShow.length === 0) {
-    const empty = document.createElement('div');
-    empty.style.cssText = 'background:white;border:1px solid var(--border);border-radius:12px;padding:48px;text-align:center;color:var(--text-muted)';
-    empty.innerHTML = '<div style="font-size:40px;margin-bottom:16px">&#128221;</div>'
-      + '<div style="font-weight:700;font-size:15px;text-transform:uppercase;color:var(--navy);margin-bottom:8px">Aucun entretien encore</div>'
-      + '<div style="font-size:13px;line-height:1.6">Commence par ajouter ton premier entretien !</div>';
-    el.appendChild(empty);
-    return;
-  }
-
-  const statusBg = {'En cours':'var(--cyan-light);color:var(--navy)','En attente':'#fff8e8;color:#b07800','Offre reçue':'var(--green-light);color:var(--green)','Refus':'#fff0f0;color:#e74c3c'};
-  const etapeBg  = {'Premier contact':'#e8f0fe','Entretien RH':'#f0e8fe','Entretien manager':'#e8f8fe','Cas pratique':'#fff8e8','Offre':'var(--green-light)'};
-
-  toShow.forEach(function(iv) {
-    const card = document.createElement('div');
-    card.style.cssText = 'background:white;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:12px';
-
-    const stars = '★'.repeat(iv.ressenti||0) + '☆'.repeat(5-(iv.ressenti||0));
-    const dateStr = iv.date_entretien ? new Date(iv.date_entretien).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}) : '—';
-    const sColor = statusBg[iv.statut] || 'var(--gray-light);color:var(--text-muted)';
-    const eColor = etapeBg[iv.etape] || 'var(--gray-light)';
-
-    // Header de la carte
-    const cardHdr = document.createElement('div');
-    cardHdr.style.cssText = 'padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)';
-
-    const cardTitle = document.createElement('div');
-    cardTitle.innerHTML = '<div style="font-weight:700;font-size:15px;color:var(--navy);margin-bottom:3px">'+iv.entreprise+'</div>'
-      + '<div style="font-size:12px;color:var(--text-muted)">'+(iv.poste||'')+(iv.secteur?' · '+iv.secteur:'')+'</div>';
-
-    const cardActions = document.createElement('div');
-    cardActions.style.cssText = 'display:flex;align-items:center;gap:8px';
-
-    const statusBadge = document.createElement('span');
-    statusBadge.style.cssText = 'font-size:11px;padding:3px 10px;border-radius:20px;font-weight:500;background:'+sColor.split(';')[0]+';'+sColor.split(';')[1];
-    statusBadge.textContent = iv.statut || 'En cours';
-
-    const editBtn = document.createElement('button');
-    editBtn.style.cssText = 'background:var(--off-white);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit';
-    editBtn.textContent = 'Modifier';
-    editBtn.onclick = (function(ivId,parentEl){ return function(){ showInterviewForm(ivId, parentEl); }; })(iv.id, el);
-
-    const delBtn = document.createElement('button');
-    delBtn.style.cssText = 'background:transparent;border:1px solid #fca5a5;border-radius:6px;padding:4px 10px;font-size:12px;color:#e74c3c;cursor:pointer;font-family:inherit';
-    delBtn.textContent = 'Supprimer';
-    delBtn.onclick = (function(ivId,parentEl){ return function(){ deleteInterview(ivId, parentEl); }; })(iv.id, el);
-
-    cardActions.appendChild(statusBadge);
-    cardActions.appendChild(editBtn);
-    cardActions.appendChild(delBtn);
-    cardHdr.appendChild(cardTitle);
-    cardHdr.appendChild(cardActions);
-    card.appendChild(cardHdr);
-
-    // Infos principales
-    const infoGrid = document.createElement('div');
-    infoGrid.style.cssText = 'padding:14px 20px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px';
-    infoGrid.innerHTML = '<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:4px">Date</div><div style="font-size:13px;color:var(--navy)">'+dateStr+'</div></div>'
-      + '<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:4px">Étape</div>'
-      + '<span style="font-size:12px;display:inline-flex;padding:3px 10px;border-radius:20px;background:'+eColor+';color:var(--navy)">'+(iv.etape||'—')+'</span></div>'
-      + '<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:4px">Ressenti</div><div style="font-size:14px;color:#f0a000">'+stars+'</div></div>';
-    card.appendChild(infoGrid);
-
-    // Points positifs / difficultés
-    if (iv.points_positifs || iv.difficultes) {
-      const details = document.createElement('div');
-      details.style.cssText = 'padding:0 20px 14px;display:grid;grid-template-columns:1fr 1fr;gap:12px';
-      if(iv.points_positifs) details.innerHTML += '<div style="background:var(--green-light);border-radius:8px;padding:10px 12px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--green);margin-bottom:4px">Points positifs</div><div style="font-size:12px;color:#0a4a3a;line-height:1.5">'+iv.points_positifs+'</div></div>';
-      if(iv.difficultes)      details.innerHTML += '<div style="background:#fff8e8;border-radius:8px;padding:10px 12px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#b07800;margin-bottom:4px">Difficultés</div><div style="font-size:12px;color:#5a4010;line-height:1.5">'+iv.difficultes+'</div></div>';
-      card.appendChild(details);
-    }
-
-    // Prochaine étape
-    if (iv.prochaine_etape) {
-      const next = document.createElement('div');
-      next.style.cssText = 'padding:0 20px 14px';
-      next.innerHTML = '<div style="background:var(--cyan-light);border-left:3px solid var(--cyan);border-radius:0 8px 8px 0;padding:8px 12px;font-size:12px;color:var(--navy)"><strong>Prochaine étape :</strong> '+iv.prochaine_etape+'</div>';
-      card.appendChild(next);
-    }
-
-    el.appendChild(card);
-  });
-}
-
-function showInterviewForm(id, parentEl) {
-  const ov = document.createElement('div');
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(13,21,92,.75);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:40px 24px;overflow-y:auto';
-  ov.onclick = function(e) { if(e.target===ov) ov.remove(); };
-
-  const box = document.createElement('div');
-  box.style.cssText = 'background:white;border-radius:16px;max-width:600px;width:100%;padding:28px;box-shadow:0 24px 60px rgba(13,21,92,.25)';
-
-  // Titre
-  const boxHdr = document.createElement('div');
-  boxHdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:24px';
-  const boxTitle = document.createElement('div');
-  boxTitle.style.cssText = 'font-weight:700;font-size:18px;text-transform:uppercase;color:var(--navy)';
-  boxTitle.textContent = id ? 'Modifier un entretien' : 'Nouvel entretien';
-  const closeBtn = document.createElement('button');
-  closeBtn.style.cssText = 'background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;color:var(--navy);font-family:inherit';
-  closeBtn.textContent = '× Fermer';
-  closeBtn.onclick = function() { ov.remove(); };
-  boxHdr.appendChild(boxTitle);
-  boxHdr.appendChild(closeBtn);
-  box.appendChild(boxHdr);
-
-  // Formulaire
-  const form = document.createElement('div');
-  box.appendChild(form);
-  ov.appendChild(box);
-  document.body.appendChild(ov);
-
-  // Charger les données si modification
-  if (id) {
-    sb.from('interviews').select('*').eq('id', id).single().then(function(res) {
-      buildFormFields(form, res.data || {}, id, parentEl);
+    carnetState.applications = apps || [];
+    const interviewsByApp = {};
+    (interviews || []).forEach(i => {
+      if (!interviewsByApp[i.application_id]) interviewsByApp[i.application_id] = [];
+      interviewsByApp[i.application_id].push(i);
     });
-  } else {
-    buildFormFields(form, {}, null, parentEl);
+
+    view.innerHTML = '';
+
+    // Header
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px';
+    header.innerHTML = '<div><div style="font-family:\'Gopher\',sans-serif;font-weight:700;font-size:22px;text-transform:uppercase;color:var(--navy);margin-bottom:4px">Mon carnet de bord</div><div style="font-size:13px;color:var(--text-muted)">Suivi de tes candidatures et entretiens</div></div>';
+
+    const addBtn = document.createElement('button');
+    addBtn.style.cssText = 'background:var(--navy);color:var(--cyan);border:none;border-radius:10px;padding:12px 22px;font-family:\'GopherDisplay\',sans-serif;font-weight:600;font-size:13px;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;display:flex;align-items:center;gap:8px';
+    addBtn.innerHTML = '<span style="font-size:16px">+</span> Nouvelle candidature';
+    addBtn.onclick = () => showApplicationForm(null);
+    header.appendChild(addBtn);
+    view.appendChild(header);
+
+    // Stats globales
+    const total = carnetState.applications.length;
+    const inProgress = carnetState.applications.filter(a => ['applied','responded','interviewing'].includes(a.status)).length;
+    const offers = carnetState.applications.filter(a => a.status === 'accepted').length;
+    const rejected = carnetState.applications.filter(a => a.status === 'rejected').length;
+
+    const stats = document.createElement('div');
+    stats.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:24px';
+    [
+      ['Total candidatures', total, 'var(--navy)', 'white'],
+      ['En cours', inProgress, 'var(--cyan-light)', 'var(--navy)'],
+      ['Offres reçues', offers, 'var(--green-light)', 'var(--green)'],
+      ['Refus', rejected, '#fff0f0', '#e74c3c']
+    ].forEach(([label, val, bg, fg]) => {
+      const card = document.createElement('div');
+      card.style.cssText = 'background:'+bg+';border-radius:12px;padding:16px 20px';
+      card.innerHTML = '<div style="font-weight:700;font-size:28px;color:'+fg+';line-height:1">'+val+'</div>'
+        + '<div style="font-size:12px;color:'+fg+';opacity:.75;margin-top:4px">'+label+'</div>';
+      stats.appendChild(card);
+    });
+    view.appendChild(stats);
+
+    if (total === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'background:white;border:2px dashed var(--border);border-radius:14px;padding:60px 30px;text-align:center;color:var(--text-muted)';
+      empty.innerHTML = '<div style="font-size:48px;margin-bottom:16px">&#128221;</div>'
+        + '<div style="font-size:16px;color:var(--navy);font-weight:600;margin-bottom:8px">Aucune candidature pour l\'instant</div>'
+        + '<div style="font-size:13px;max-width:380px;margin:0 auto">Commence par ajouter ta première candidature pour suivre ton parcours de recherche.</div>';
+      view.appendChild(empty);
+      return;
+    }
+
+    // Liste des candidatures (cartes dépliables)
+    const list = document.createElement('div');
+    list.style.cssText = 'display:flex;flex-direction:column;gap:12px';
+    carnetState.applications.forEach(app => {
+      list.appendChild(buildApplicationCard(app, interviewsByApp[app.id] || []));
+    });
+    view.appendChild(list);
+
+  } catch (e) {
+    console.error('renderCarnet:', e);
+    view.innerHTML = '<div style="background:#fff0f0;border:1px solid #fcc;padding:20px;border-radius:10px;color:#c00">Erreur lors du chargement : '+e.message+'</div>';
   }
 }
 
-function makeInput(labelText, id, type, value, placeholder) {
-  const wrap = document.createElement('div');
-  const lbl = document.createElement('label');
-  lbl.style.cssText = 'font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);display:block;margin-bottom:6px';
-  lbl.textContent = labelText;
-  const inp = document.createElement('input');
-  inp.type = type; inp.id = id; inp.value = value || ''; inp.placeholder = placeholder || '';
-  inp.style.cssText = 'width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;color:var(--navy);background:var(--off-white);outline:none;box-sizing:border-box;font-family:inherit';
-  wrap.appendChild(lbl); wrap.appendChild(inp);
-  return wrap;
-}
+function buildApplicationCard(app, interviews) {
+  const card = document.createElement('div');
+  card.style.cssText = 'background:white;border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:all .2s';
 
-function makeSelect(labelText, id, options, value) {
-  const wrap = document.createElement('div');
-  const lbl = document.createElement('label');
-  lbl.style.cssText = 'font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);display:block;margin-bottom:6px';
-  lbl.textContent = labelText;
-  const sel = document.createElement('select');
-  sel.id = id;
-  sel.style.cssText = 'width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;color:var(--navy);background:var(--off-white);outline:none;font-family:inherit';
-  options.forEach(function(opt) {
-    const o = document.createElement('option');
-    o.value = opt; o.textContent = opt;
-    if (opt === value) o.selected = true;
-    sel.appendChild(o);
-  });
-  wrap.appendChild(lbl); wrap.appendChild(sel);
-  return wrap;
-}
+  const status = APP_STATUSES[app.status] || APP_STATUSES.to_apply;
 
-function makeTextarea(labelText, id, value, placeholder) {
-  const wrap = document.createElement('div');
-  const lbl = document.createElement('label');
-  lbl.style.cssText = 'font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);display:block;margin-bottom:6px';
-  lbl.textContent = labelText;
-  const ta = document.createElement('textarea');
-  ta.id = id; ta.placeholder = placeholder || ''; ta.textContent = value || '';
-  ta.style.cssText = 'width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--navy);background:var(--off-white);resize:vertical;min-height:70px;outline:none;box-sizing:border-box;font-family:inherit';
-  wrap.appendChild(lbl); wrap.appendChild(ta);
-  return wrap;
-}
-
-function buildFormFields(form, data, id, parentEl) {
-  const row1 = document.createElement('div');
-  row1.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px';
-  row1.appendChild(makeInput('Entreprise *', 'iv_entreprise', 'text', data.entreprise, 'Ex : Google'));
-  row1.appendChild(makeInput('Poste', 'iv_poste', 'text', data.poste, 'Ex : Business Developer'));
-  form.appendChild(row1);
-
-  const row2 = document.createElement('div');
-  row2.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px';
-  row2.appendChild(makeInput('Secteur', 'iv_secteur', 'text', data.secteur, 'Ex : Tech, Mode...'));
-  row2.appendChild(makeInput('Date', 'iv_date', 'date', data.date_entretien ? data.date_entretien.substring(0,10) : '', ''));
-  form.appendChild(row2);
-
-  const row3 = document.createElement('div');
-  row3.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px';
-  row3.appendChild(makeSelect('Étape', 'iv_etape', ['Premier contact','Entretien RH','Entretien manager','Cas pratique','Offre'], data.etape));
-  row3.appendChild(makeSelect('Statut', 'iv_statut', ['En cours','En attente','Offre reçue','Refus'], data.statut));
-  form.appendChild(row3);
-
-  // Étoiles
-  const starsWrap = document.createElement('div');
-  starsWrap.style.cssText = 'margin-bottom:14px';
-  const starsLbl = document.createElement('label');
-  starsLbl.style.cssText = 'font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);display:block;margin-bottom:8px';
-  starsLbl.textContent = 'Ressenti général';
-  const starsRow = document.createElement('div');
-  starsRow.id = 'iv_stars';
-  starsRow.style.cssText = 'display:flex;gap:8px';
-  const hiddenRessenti = document.createElement('input');
-  hiddenRessenti.type='hidden'; hiddenRessenti.id='iv_ressenti'; hiddenRessenti.value=data.ressenti||0;
-  var currentRessenti = data.ressenti || 0;
-  for(var i=1;i<=5;i++) {
-    (function(n) {
-      const starBtn = document.createElement('button');
-      starBtn.type='button';
-      starBtn.dataset.val = n;
-      starBtn.style.cssText = 'font-size:24px;background:none;border:none;cursor:pointer;color:'+(n<=currentRessenti?'#f0a000':'#ddd');
-      starBtn.textContent = n<=currentRessenti ? '★' : '☆';
-      starBtn.onclick = function() {
-        document.getElementById('iv_ressenti').value = n;
-        currentRessenti = n;
-        document.querySelectorAll('#iv_stars button').forEach(function(b) {
-          const v = parseInt(b.dataset.val);
-          b.textContent = v<=n?'★':'☆';
-          b.style.color  = v<=n?'#f0a000':'#ddd';
-        });
-      };
-      starsRow.appendChild(starBtn);
-    })(i);
-  }
-  starsWrap.appendChild(starsLbl);
-  starsWrap.appendChild(starsRow);
-  starsWrap.appendChild(hiddenRessenti);
-  form.appendChild(starsWrap);
-
-  const ta1 = makeTextarea('Points positifs', 'iv_positifs', data.points_positifs, 'Ce qui a bien fonctionné...');
-  ta1.style.marginBottom = '14px';
-  form.appendChild(ta1);
-
-  const ta2 = makeTextarea('Difficultés rencontrées', 'iv_difficultes', data.difficultes, 'Ce qui a posé problème...');
-  ta2.style.marginBottom = '14px';
-  form.appendChild(ta2);
-
-  const ta3 = makeTextarea('Prochaine étape', 'iv_next', data.prochaine_etape, 'Relance, 2e entretien...');
-  ta3.style.marginBottom = '24px';
-  form.appendChild(ta3);
-
-  const submitBtn = document.createElement('button');
-  submitBtn.style.cssText = 'width:100%;background:var(--navy);color:white;border:none;border-radius:8px;padding:13px;font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;font-family:inherit';
-  submitBtn.textContent = id ? 'ENREGISTRER LES MODIFICATIONS' : 'AJOUTER CET ENTRETIEN';
-  submitBtn.onclick = function() { saveInterview(id, parentEl); };
-  form.appendChild(submitBtn);
-}
-
-async function saveInterview(id, parentEl) {
-  const entreprise = document.getElementById('iv_entreprise').value.trim();
-  if (!entreprise) { alert('Le nom de l entreprise est requis.'); return; }
-
-  const payload = {
-    user_email: state.user.email,
-    entreprise: entreprise,
-    poste: document.getElementById('iv_poste').value.trim(),
-    secteur: document.getElementById('iv_secteur').value.trim(),
-    date_entretien: document.getElementById('iv_date').value || null,
-    etape: document.getElementById('iv_etape').value,
-    statut: document.getElementById('iv_statut').value,
-    ressenti: parseInt(document.getElementById('iv_ressenti').value) || null,
-    points_positifs: document.getElementById('iv_positifs').value.trim(),
-    difficultes: document.getElementById('iv_difficultes').value.trim(),
-    prochaine_etape: document.getElementById('iv_next').value.trim(),
-    updated_at: new Date().toISOString(),
+  // En-tête
+  const head = document.createElement('div');
+  head.style.cssText = 'padding:16px 20px;display:flex;align-items:center;gap:14px;cursor:pointer';
+  head.onclick = (e) => {
+    if (e.target.closest('.app-actions')) return;
+    const body = card.querySelector('.app-body');
+    body.style.display = body.style.display === 'none' ? 'block' : 'none';
+    const chev = card.querySelector('.chev');
+    if (chev) chev.style.transform = body.style.display === 'none' ? 'rotate(0)' : 'rotate(180deg)';
   };
 
-  try {
-    if (id) {
-      await sb.from('interviews').update(payload).eq('id', id);
-    } else {
-      payload.created_at = new Date().toISOString();
-      await sb.from('interviews').insert(payload);
-    }
-    const modal = document.querySelector('[style*="z-index:200"]');
-    if(modal) modal.remove();
-    renderCarnet(parentEl);
-  } catch(e) {
-    console.warn('save interview:', e.message);
-    alert('Erreur : ' + e.message);
+  const initials = (app.company || '?').substring(0, 2).toUpperCase();
+  head.innerHTML = '<div style="width:42px;height:42px;border-radius:50%;background:var(--navy);color:var(--cyan);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">'+initials+'</div>'
+    + '<div style="flex:1;min-width:0">'
+    + '<div style="font-weight:700;font-size:15px;color:var(--navy);margin-bottom:2px">'+escapeHtml(app.company)+'</div>'
+    + '<div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(app.position || '—')+(app.sector ? ' · '+escapeHtml(app.sector) : '')+'</div>'
+    + '</div>'
+    + '<span style="font-size:11px;padding:4px 12px;border-radius:20px;font-weight:500;background:'+status.bg+';color:'+status.color+';white-space:nowrap">'+status.label+'</span>'
+    + '<div class="app-actions" style="display:flex;gap:6px;flex-shrink:0">'
+    + '<button onclick="event.stopPropagation();showApplicationForm(\''+app.id+'\')" style="background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:12px;color:var(--navy);font-family:inherit">&#9998;</button>'
+    + '<button onclick="event.stopPropagation();deleteApplication(\''+app.id+'\')" style="background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:12px;color:#e74c3c;font-family:inherit">&times;</button>'
+    + '</div>'
+    + '<span class="chev" style="font-size:14px;color:var(--text-muted);transition:transform .2s">&#9662;</span>';
+  card.appendChild(head);
+
+  // Corps (replié par défaut)
+  const body = document.createElement('div');
+  body.className = 'app-body';
+  body.style.cssText = 'display:none;padding:0 20px 20px;border-top:1px solid var(--border)';
+  body.appendChild(buildApplicationDetails(app, interviews));
+  card.appendChild(body);
+
+  return card;
+}
+
+function buildApplicationDetails(app, interviews) {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'padding-top:16px;display:flex;flex-direction:column;gap:12px';
+
+  // Méta-infos rapides
+  const meta = document.createElement('div');
+  meta.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px';
+  const metaCells = [];
+  if (app.applied_at) metaCells.push(['&#128197; Candidaté le', new Date(app.applied_at).toLocaleDateString('fr-FR')]);
+  if (app.location || app.work_mode) metaCells.push(['&#128205; Localisation', [app.location, app.work_mode].filter(Boolean).join(' — ')]);
+  if (app.reminder_at) metaCells.push(['&#9203; Relance prévue', new Date(app.reminder_at).toLocaleDateString('fr-FR')]);
+  metaCells.forEach(([lbl, val]) => {
+    const c = document.createElement('div');
+    c.style.cssText = 'background:var(--off-white);border-radius:8px;padding:8px 12px';
+    c.innerHTML = '<div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">'+lbl+'</div><div style="font-size:12px;color:var(--navy);font-weight:600">'+escapeHtml(val)+'</div>';
+    meta.appendChild(c);
+  });
+  if (metaCells.length > 0) wrap.appendChild(meta);
+
+  // Liens
+  if (app.offer_url || app.company_url) {
+    const links = sectionCard('&#128279; Liens');
+    const inner = document.createElement('div');
+    inner.style.cssText = 'display:flex;flex-direction:column;gap:6px;font-size:13px';
+    if (app.offer_url) inner.innerHTML += '<div><span style="color:var(--text-muted)">Offre :</span> <a href="'+escapeAttr(app.offer_url)+'" target="_blank" style="color:var(--navy);text-decoration:underline;word-break:break-all">'+escapeHtml(app.offer_url)+'</a></div>';
+    if (app.company_url) inner.innerHTML += '<div><span style="color:var(--text-muted)">Site :</span> <a href="'+escapeAttr(app.company_url)+'" target="_blank" style="color:var(--navy);text-decoration:underline;word-break:break-all">'+escapeHtml(app.company_url)+'</a></div>';
+    links.appendChild(inner);
+    wrap.appendChild(links);
   }
+
+  // Contact
+  if (app.contact_name || app.contact_email || app.contact_linkedin) {
+    const cont = sectionCard('&#128100; Contact identifié');
+    const inner = document.createElement('div');
+    inner.style.cssText = 'font-size:13px;color:var(--navy);line-height:1.6';
+    if (app.contact_name) inner.innerHTML += '<div style="font-weight:600">'+escapeHtml(app.contact_name)+(app.contact_role ? ' — '+escapeHtml(app.contact_role) : '')+'</div>';
+    const details = [];
+    if (app.contact_email) details.push('<a href="mailto:'+escapeAttr(app.contact_email)+'" style="color:var(--navy)">'+escapeHtml(app.contact_email)+'</a>');
+    if (app.contact_linkedin) details.push('<a href="'+escapeAttr(app.contact_linkedin)+'" target="_blank" style="color:var(--navy);text-decoration:underline">LinkedIn</a>');
+    if (details.length) inner.innerHTML += '<div style="font-size:12px;color:var(--text-muted);margin-top:2px">'+details.join(' · ')+'</div>';
+    cont.appendChild(inner);
+    wrap.appendChild(cont);
+  }
+
+  // Recherches préparatoires
+  const hasResearch = app.research_company || app.research_position || app.research_sector || app.research_team;
+  if (hasResearch) {
+    const research = sectionCard('&#128269; Recherches préparatoires');
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;font-size:12px';
+    if (app.research_company) grid.innerHTML += '<div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:3px">Sur l\'entreprise</div><div style="color:var(--navy);line-height:1.5;white-space:pre-wrap">'+escapeHtml(app.research_company)+'</div></div>';
+    if (app.research_position) grid.innerHTML += '<div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:3px">Sur le poste</div><div style="color:var(--navy);line-height:1.5;white-space:pre-wrap">'+escapeHtml(app.research_position)+'</div></div>';
+    if (app.research_sector) grid.innerHTML += '<div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:3px">Sur le secteur</div><div style="color:var(--navy);line-height:1.5;white-space:pre-wrap">'+escapeHtml(app.research_sector)+'</div></div>';
+    if (app.research_team) grid.innerHTML += '<div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:3px">Sur l\'équipe</div><div style="color:var(--navy);line-height:1.5;white-space:pre-wrap">'+escapeHtml(app.research_team)+'</div></div>';
+    research.appendChild(grid);
+    wrap.appendChild(research);
+  }
+
+  // Entretiens
+  const itvSection = sectionCard('&#128172; Entretiens ('+interviews.length+')');
+  const itvList = document.createElement('div');
+  itvList.style.cssText = 'display:flex;flex-direction:column;gap:6px';
+  interviews.forEach(iv => {
+    const itvStatus = INTERVIEW_STATUSES[iv.status] || INTERVIEW_STATUSES.scheduled;
+    const stars = iv.rating ? '★'.repeat(iv.rating) + '☆'.repeat(5 - iv.rating) : '';
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--off-white);border-radius:8px;font-size:12px';
+    row.innerHTML = '<div style="flex:1"><div style="font-weight:600;color:var(--navy)">'+escapeHtml(iv.stage)+'</div>'
+      + '<div style="color:var(--text-muted);font-size:11px;margin-top:2px">'+(iv.interview_date ? new Date(iv.interview_date).toLocaleDateString('fr-FR', {day:'numeric', month:'long', year:'numeric'}) : 'Date non définie')+(stars ? ' · <span style="color:#f0a000">'+stars+'</span>' : '')+'</div></div>'
+      + '<span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:500;background:'+itvStatus.bg+';color:'+itvStatus.color+'">'+itvStatus.label+'</span>'
+      + '<button onclick="showInterviewForm(\''+app.id+'\',\''+iv.id+'\')" style="background:white;border:1px solid var(--border);border-radius:6px;padding:4px 8px;cursor:pointer;font-size:11px;color:var(--navy);font-family:inherit">&#9998;</button>'
+      + '<button onclick="deleteInterview(\''+iv.id+'\')" style="background:white;border:1px solid var(--border);border-radius:6px;padding:4px 8px;cursor:pointer;font-size:11px;color:#e74c3c;font-family:inherit">&times;</button>';
+    itvList.appendChild(row);
+  });
+  itvSection.appendChild(itvList);
+
+  const addItvBtn = document.createElement('button');
+  addItvBtn.style.cssText = 'margin-top:8px;background:var(--cyan-light);border:1px dashed var(--cyan);border-radius:8px;padding:8px 14px;cursor:pointer;font-size:12px;color:var(--navy);font-family:\'GopherDisplay\',sans-serif;font-weight:600;width:100%';
+  addItvBtn.innerHTML = '+ Ajouter un entretien';
+  addItvBtn.onclick = () => showInterviewForm(app.id, null);
+  itvSection.appendChild(addItvBtn);
+
+  wrap.appendChild(itvSection);
+
+  // Notes personnelles
+  if (app.personal_notes) {
+    const notes = sectionCard('&#128221; Notes personnelles');
+    const inner = document.createElement('div');
+    inner.style.cssText = 'font-size:12px;color:var(--navy);line-height:1.6;white-space:pre-wrap';
+    inner.textContent = app.personal_notes;
+    notes.appendChild(inner);
+    wrap.appendChild(notes);
+  }
+
+  // Questions à poser
+  if (app.questions_to_ask) {
+    const q = sectionCard('&#10067; Questions à poser');
+    const inner = document.createElement('div');
+    inner.style.cssText = 'font-size:12px;color:var(--navy);line-height:1.6;white-space:pre-wrap';
+    inner.textContent = app.questions_to_ask;
+    q.appendChild(inner);
+    wrap.appendChild(q);
+  }
+
+  return wrap;
 }
 
-async function deleteInterview(id, parentEl) {
-  if (!confirm('Supprimer cet entretien ?')) return;
-  try {
-    await sb.from('interviews').delete().eq('id', id);
-    renderCarnet(parentEl);
-  } catch(e) { console.warn(e); }
+function sectionCard(title) {
+  const section = document.createElement('div');
+  section.style.cssText = 'background:white;border:1px solid var(--border);border-radius:10px;padding:12px 14px';
+  section.innerHTML = '<div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">'+title+'</div>';
+  return section;
 }
 
-// ── VUE COACH : Suivi carnets de bord
-async function showCoachCarnet(email, name) {
+function escapeHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function escapeAttr(s) { return escapeHtml(s); }
+
+// ============================================================
+// FORMULAIRE CANDIDATURE (ajout / édition)
+// ============================================================
+async function showApplicationForm(appId) {
+  let app = { status: 'to_apply' };
+  if (appId) {
+    app = carnetState.applications.find(a => a.id === appId) || app;
+  }
+
   const ov = document.createElement('div');
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(13,21,92,.75);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:40px 24px;overflow-y:auto';
-  ov.onclick = function(e) { if(e.target===ov) ov.remove(); };
+  ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
 
   const box = document.createElement('div');
   box.style.cssText = 'background:white;border-radius:16px;max-width:780px;width:100%;padding:28px;box-shadow:0 24px 60px rgba(13,21,92,.25)';
-
-  // Header
-  const hdr = document.createElement('div');
-  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:24px';
-  const title = document.createElement('div');
-  title.innerHTML = '<div style="font-weight:700;font-size:18px;text-transform:uppercase;color:var(--navy);margin-bottom:3px">&#128218; Carnet de bord</div>'
-    + '<div style="font-size:13px;color:var(--text-muted)">'+name+' &mdash; '+email+'</div>';
-  const closeBtn = document.createElement('button');
-  closeBtn.style.cssText = 'background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;color:var(--navy);font-family:inherit';
-  closeBtn.textContent = '× Fermer';
-  closeBtn.onclick = function() { ov.remove(); };
-  hdr.appendChild(title);
-  hdr.appendChild(closeBtn);
-  box.appendChild(hdr);
-
-  // Loading
-  const loading = document.createElement('div');
-  loading.style.cssText = 'text-align:center;padding:40px;color:var(--text-muted)';
-  loading.innerHTML = '<div style="font-size:28px">&#9203;</div><div>Chargement...</div>';
-  box.appendChild(loading);
-
   ov.appendChild(box);
+
+  const title = appId ? 'Modifier la candidature' : 'Nouvelle candidature';
+  box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px"><div style="font-family:\'Gopher\',sans-serif;font-weight:700;font-size:18px;text-transform:uppercase;color:var(--navy)">'+title+'</div><button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;color:var(--navy);font-family:inherit">&times; Fermer</button></div>';
+
+  const form = document.createElement('div');
+  form.style.cssText = 'display:flex;flex-direction:column;gap:18px';
+
+  // SECTION 1 : Identification
+  form.appendChild(formSection('Identification', [
+    [['Entreprise *', 'company', 'text', app.company, 'Ex : Decathlon'], ['Poste', 'position', 'text', app.position, 'Ex : Business Developer']],
+    [['Secteur', 'sector', 'text', app.sector, 'Ex : Retail Sport'], ['Localisation', 'location', 'text', app.location, 'Ex : Lille']],
+    [['Mode de travail', 'work_mode', 'select', app.work_mode, ['Présentiel', 'Hybride', 'Remote']]]
+  ]));
+
+  // SECTION 2 : Liens
+  form.appendChild(formSection('Liens', [
+    [['URL de l\'offre', 'offer_url', 'text', app.offer_url, 'https://…']],
+    [['URL du site entreprise', 'company_url', 'text', app.company_url, 'https://…']]
+  ]));
+
+  // SECTION 3 : Statut et dates
+  const statusOptions = Object.entries(APP_STATUSES).map(([k,v]) => ({ value: k, label: v.label }));
+  form.appendChild(formSection('Statut & dates', [
+    [['Statut', 'status', 'select-obj', app.status, statusOptions], ['Date de candidature', 'applied_at', 'date', app.applied_at]],
+    [['Date de relance prévue', 'reminder_at', 'date', app.reminder_at]]
+  ]));
+
+  // SECTION 4 : Contact identifié
+  form.appendChild(formSection('Contact identifié', [
+    [['Nom du contact', 'contact_name', 'text', app.contact_name, 'Ex : Camille Martin'], ['Poste/rôle', 'contact_role', 'text', app.contact_role, 'Ex : Talent Acquisition']],
+    [['Email', 'contact_email', 'text', app.contact_email, 'contact@entreprise.com'], ['Profil LinkedIn', 'contact_linkedin', 'text', app.contact_linkedin, 'https://linkedin.com/in/…']]
+  ]));
+
+  // SECTION 5 : Recherches préparatoires
+  form.appendChild(formSection('Recherches préparatoires', [
+    [['Sur l\'entreprise', 'research_company', 'textarea', app.research_company, 'Histoire, valeurs, chiffres clés…']],
+    [['Sur le poste', 'research_position', 'textarea', app.research_position, 'Missions, compétences attendues…']],
+    [['Sur le secteur', 'research_sector', 'textarea', app.research_sector, 'Marché, tendances, concurrents…']],
+    [['Sur l\'équipe', 'research_team', 'textarea', app.research_team, 'Manager, fonctionnement, taille…']]
+  ]));
+
+  // SECTION 6 : Notes & questions
+  form.appendChild(formSection('Notes & préparation entretien', [
+    [['Notes personnelles', 'personal_notes', 'textarea', app.personal_notes, 'Premières impressions, points d\'attention…']],
+    [['Questions à poser en entretien', 'questions_to_ask', 'textarea', app.questions_to_ask, 'Une question par ligne…']]
+  ]));
+
+  box.appendChild(form);
+
+  // Boutons
+  const actions = document.createElement('div');
+  actions.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;margin-top:20px;padding-top:20px;border-top:1px solid var(--border)';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.style.cssText = 'background:var(--off-white);border:1px solid var(--border);border-radius:10px;padding:12px 22px;font-family:\'GopherDisplay\',sans-serif;font-weight:600;font-size:13px;cursor:pointer;color:var(--navy);text-transform:uppercase;letter-spacing:.05em';
+  cancelBtn.textContent = 'Annuler';
+  cancelBtn.onclick = () => ov.remove();
+  actions.appendChild(cancelBtn);
+
+  const saveBtn = document.createElement('button');
+  saveBtn.style.cssText = 'background:var(--navy);color:var(--cyan);border:none;border-radius:10px;padding:12px 26px;font-family:\'GopherDisplay\',sans-serif;font-weight:600;font-size:13px;cursor:pointer;text-transform:uppercase;letter-spacing:.05em';
+  saveBtn.textContent = appId ? 'Enregistrer' : 'Créer la candidature';
+  saveBtn.onclick = () => saveApplication(appId, ov);
+  actions.appendChild(saveBtn);
+
+  box.appendChild(actions);
   document.body.appendChild(ov);
+}
 
-  // Charger les entretiens
-  let interviews = [];
-  try {
-    const { data } = await sb.from('interviews').select('*').eq('user_email', email).order('date_entretien', {ascending:false});
-    interviews = data || [];
-  } catch(e) { console.warn('coach carnet:', e.message); }
+function formSection(title, rows) {
+  const s = document.createElement('div');
+  s.style.cssText = 'background:var(--off-white);border-radius:12px;padding:16px 18px';
+  s.innerHTML = '<div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px">'+title+'</div>';
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:10px';
+  rows.forEach(row => {
+    const r = document.createElement('div');
+    r.style.cssText = 'display:grid;grid-template-columns:repeat('+row.length+',1fr);gap:10px';
+    row.forEach(field => r.appendChild(buildFormField(field)));
+    wrap.appendChild(r);
+  });
+  s.appendChild(wrap);
+  return s;
+}
 
-  loading.remove();
+function buildFormField([label, name, type, value, extra]) {
+  const w = document.createElement('div');
+  const lbl = document.createElement('div');
+  lbl.style.cssText = 'font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.03em';
+  lbl.innerHTML = label;
+  w.appendChild(lbl);
 
-  if (interviews.length === 0) {
-    const empty = document.createElement('div');
-    empty.style.cssText = 'text-align:center;padding:40px;color:var(--text-muted)';
-    empty.innerHTML = '<div style="font-size:32px;margin-bottom:12px">&#128221;</div><div>Aucun entretien enregistré pour l\'instant.</div>';
-    box.appendChild(empty);
+  let input;
+  if (type === 'textarea') {
+    input = document.createElement('textarea');
+    input.style.cssText = 'width:100%;padding:10px 12px;background:white;border:1px solid var(--border);border-radius:8px;font-family:\'GopherDisplay\',sans-serif;font-size:13px;color:var(--navy);resize:vertical;min-height:70px;box-sizing:border-box';
+    input.value = value || '';
+    if (extra) input.placeholder = extra;
+  } else if (type === 'select') {
+    input = document.createElement('select');
+    input.style.cssText = 'width:100%;padding:10px 12px;background:white;border:1px solid var(--border);border-radius:8px;font-family:\'GopherDisplay\',sans-serif;font-size:13px;color:var(--navy);box-sizing:border-box';
+    input.innerHTML = '<option value="">—</option>';
+    extra.forEach(opt => input.innerHTML += '<option value="'+escapeAttr(opt)+'"'+(value === opt ? ' selected' : '')+'>'+escapeHtml(opt)+'</option>');
+  } else if (type === 'select-obj') {
+    input = document.createElement('select');
+    input.style.cssText = 'width:100%;padding:10px 12px;background:white;border:1px solid var(--border);border-radius:8px;font-family:\'GopherDisplay\',sans-serif;font-size:13px;color:var(--navy);box-sizing:border-box';
+    extra.forEach(opt => input.innerHTML += '<option value="'+escapeAttr(opt.value)+'"'+(value === opt.value ? ' selected' : '')+'>'+escapeHtml(opt.label)+'</option>');
+  } else {
+    input = document.createElement('input');
+    input.type = type;
+    input.style.cssText = 'width:100%;padding:10px 12px;background:white;border:1px solid var(--border);border-radius:8px;font-family:\'GopherDisplay\',sans-serif;font-size:13px;color:var(--navy);box-sizing:border-box';
+    input.value = value || '';
+    if (extra && type === 'text') input.placeholder = extra;
+  }
+  input.name = name;
+  input.dataset.field = name;
+  w.appendChild(input);
+  return w;
+}
+
+async function saveApplication(appId, ov) {
+  const inputs = ov.querySelectorAll('[data-field]');
+  const data = { user_email: state.user.email };
+  inputs.forEach(i => {
+    const val = i.value.trim();
+    data[i.dataset.field] = val || null;
+  });
+
+  if (!data.company) {
+    alert('L\'entreprise est obligatoire.');
     return;
   }
 
-  // Stats
-  const total = interviews.length;
-  const enCours = interviews.filter(function(i){return i.statut==='En cours';}).length;
-  const offres  = interviews.filter(function(i){return i.statut==='Offre reçue';}).length;
-  const refus   = interviews.filter(function(i){return i.statut==='Refus';}).length;
-
-  const statsGrid = document.createElement('div');
-  statsGrid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px';
-  [
-    ['Entretiens', total,   '#0d155c', 'white'],
-    ['En cours',   enCours, 'var(--cyan-light)', 'var(--navy)'],
-    ['Offres',     offres,  'var(--green-light)', 'var(--green)'],
-    ['Refus',      refus,   '#fff0f0', '#e74c3c'],
-  ].forEach(function(row) {
-    const c = document.createElement('div');
-    c.style.cssText = 'background:'+row[2]+';border-radius:10px;padding:14px 16px';
-    c.innerHTML = '<div style="font-weight:700;font-size:22px;color:'+row[3]+';margin-bottom:2px">'+row[1]+'</div>'
-      + '<div style="font-size:11px;color:'+row[3]+';opacity:.7">'+row[0]+'</div>';
-    statsGrid.appendChild(c);
-  });
-  box.appendChild(statsGrid);
-
-  // Liste des entretiens (lecture seule)
-  const statusBg = {'En cours':'var(--cyan-light);color:var(--navy)','En attente':'#fff8e8;color:#b07800','Offre reçue':'var(--green-light);color:var(--green)','Refus':'#fff0f0;color:#e74c3c'};
-  const etapeBg  = {'Premier contact':'#e8f0fe','Entretien RH':'#f0e8fe','Entretien manager':'#e8f8fe','Cas pratique':'#fff8e8','Offre':'var(--green-light)'};
-
-  interviews.forEach(function(iv) {
-    const card = document.createElement('div');
-    card.style.cssText = 'background:var(--off-white);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:10px';
-
-    const stars = '★'.repeat(iv.ressenti||0) + '☆'.repeat(5-(iv.ressenti||0));
-    const dateStr = iv.date_entretien ? new Date(iv.date_entretien).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}) : '—';
-    const sColor = statusBg[iv.statut] || 'var(--gray-light);color:var(--text-muted)';
-    const eColor = etapeBg[iv.etape] || 'var(--gray-light)';
-
-    // Header carte
-    const cardHdr = document.createElement('div');
-    cardHdr.style.cssText = 'padding:14px 18px;display:flex;align-items:center;justify-content:space-between;background:white;border-bottom:1px solid var(--border)';
-    const left = document.createElement('div');
-    left.innerHTML = '<div style="font-weight:700;font-size:14px;color:var(--navy);margin-bottom:2px">'+iv.entreprise+'</div>'
-      + '<div style="font-size:12px;color:var(--text-muted)">'+(iv.poste||'')+(iv.secteur?' · '+iv.secteur:'')+'</div>';
-    const right = document.createElement('div');
-    right.style.cssText = 'display:flex;align-items:center;gap:8px';
-    const statusBadge = document.createElement('span');
-    statusBadge.style.cssText = 'font-size:11px;padding:3px 10px;border-radius:20px;font-weight:500;background:'+sColor.split(';')[0]+';'+sColor.split(';')[1];
-    statusBadge.textContent = iv.statut || 'En cours';
-    right.appendChild(statusBadge);
-    cardHdr.appendChild(left);
-    cardHdr.appendChild(right);
-    card.appendChild(cardHdr);
-
-    // Infos
-    const info = document.createElement('div');
-    info.style.cssText = 'padding:12px 18px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px';
-    info.innerHTML = '<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:3px">Date</div><div style="font-size:12px;color:var(--navy)">'+dateStr+'</div></div>'
-      + '<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:3px">Étape</div><span style="font-size:11px;display:inline-flex;padding:2px 8px;border-radius:20px;background:'+eColor+';color:var(--navy)">'+(iv.etape||'—')+'</span></div>'
-      + '<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:3px">Ressenti</div><div style="font-size:13px;color:#f0a000">'+stars+'</div></div>';
-    card.appendChild(info);
-
-    if (iv.points_positifs || iv.difficultes) {
-      const details = document.createElement('div');
-      details.style.cssText = 'padding:0 18px 12px;display:grid;grid-template-columns:1fr 1fr;gap:10px';
-      if(iv.points_positifs) details.innerHTML += '<div style="background:var(--green-light);border-radius:6px;padding:8px 10px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--green);margin-bottom:3px">Points positifs</div><div style="font-size:12px;color:#0a4a3a;line-height:1.5">'+iv.points_positifs+'</div></div>';
-      if(iv.difficultes) details.innerHTML += '<div style="background:#fff8e8;border-radius:6px;padding:8px 10px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#b07800;margin-bottom:3px">Difficultés</div><div style="font-size:12px;color:#5a4010;line-height:1.5">'+iv.difficultes+'</div></div>';
-      card.appendChild(details);
+  try {
+    if (appId) {
+      data.updated_at = new Date().toISOString();
+      const { error } = await sb.from('applications').update(data).eq('id', appId);
+      if (error) throw error;
+    } else {
+      const { error } = await sb.from('applications').insert(data);
+      if (error) throw error;
     }
-
-    if (iv.prochaine_etape) {
-      const next = document.createElement('div');
-      next.style.cssText = 'padding:0 18px 12px';
-      next.innerHTML = '<div style="background:var(--cyan-light);border-left:3px solid var(--cyan);border-radius:0 6px 6px 0;padding:7px 10px;font-size:12px;color:var(--navy)"><strong>Prochaine étape :</strong> '+iv.prochaine_etape+'</div>';
-      card.appendChild(next);
-    }
-
-    box.appendChild(card);
-  });
+    ov.remove();
+    renderCarnet();
+  } catch (e) {
+    alert('Erreur : '+e.message);
+  }
 }
+
+async function deleteApplication(appId) {
+  if (!confirm('Supprimer cette candidature et tous ses entretiens associés ?')) return;
+  try {
+    const { error } = await sb.from('applications').delete().eq('id', appId);
+    if (error) throw error;
+    renderCarnet();
+  } catch (e) {
+    alert('Erreur : '+e.message);
+  }
+}
+
+// ============================================================
+// FORMULAIRE ENTRETIEN
+// ============================================================
+async function showInterviewForm(appId, interviewId) {
+  let iv = { status: 'scheduled', rating: 0 };
+  if (interviewId) {
+    const { data } = await sb.from('application_interviews').select('*').eq('id', interviewId).single();
+    if (data) iv = data;
+  }
+
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(13,21,92,.75);backdrop-filter:blur(4px);z-index:201;display:flex;align-items:flex-start;justify-content:center;padding:40px 24px;overflow-y:auto';
+  ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:white;border-radius:16px;max-width:620px;width:100%;padding:28px;box-shadow:0 24px 60px rgba(13,21,92,.25)';
+
+  box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px"><div style="font-family:\'Gopher\',sans-serif;font-weight:700;font-size:18px;text-transform:uppercase;color:var(--navy)">'+(interviewId ? 'Modifier l\'entretien' : 'Nouvel entretien')+'</div><button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;color:var(--navy);font-family:inherit">&times; Fermer</button></div>';
+
+  const form = document.createElement('div');
+  form.style.cssText = 'display:flex;flex-direction:column;gap:14px';
+
+  const stageOptions = ['Premier contact', 'Entretien RH', 'Entretien manager', 'Cas pratique', 'Entretien technique', 'Entretien final', 'Autre'];
+  const itvStatusOptions = Object.entries(INTERVIEW_STATUSES).map(([k,v]) => ({ value: k, label: v.label }));
+
+  form.appendChild(formSection('Informations', [
+    [['Étape *', 'stage', 'select', iv.stage || '', stageOptions], ['Date', 'interview_date', 'date', iv.interview_date]],
+    [['Statut', 'status', 'select-obj', iv.status, itvStatusOptions]]
+  ]));
+
+  // Rating étoiles
+  const ratingSection = document.createElement('div');
+  ratingSection.style.cssText = 'background:var(--off-white);border-radius:12px;padding:16px 18px';
+  ratingSection.innerHTML = '<div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Ressenti général</div>';
+  const stars = document.createElement('div');
+  stars.style.cssText = 'display:flex;gap:8px;font-size:28px;cursor:pointer';
+  let currentRating = iv.rating || 0;
+  for (let i = 1; i <= 5; i++) {
+    const star = document.createElement('span');
+    star.dataset.value = i;
+    star.style.cssText = 'transition:color .15s';
+    star.textContent = i <= currentRating ? '★' : '☆';
+    star.style.color = i <= currentRating ? '#f0a000' : 'var(--gray-light)';
+    star.onclick = () => {
+      currentRating = i;
+      stars.querySelectorAll('span').forEach((s, idx) => {
+        s.textContent = idx < i ? '★' : '☆';
+        s.style.color = idx < i ? '#f0a000' : 'var(--gray-light)';
+      });
+    };
+    stars.appendChild(star);
+  }
+  ratingSection.appendChild(stars);
+  form.appendChild(ratingSection);
+
+  form.appendChild(formSection('Retour d\'expérience', [
+    [['Points positifs', 'positive_points', 'textarea', iv.positive_points, 'Ce qui a bien fonctionné…']],
+    [['Difficultés', 'difficulties', 'textarea', iv.difficulties, 'Ce qui a posé problème…']],
+    [['Prochaine étape', 'next_step', 'text', iv.next_step, 'Ex : Relance, 2ème entretien…']]
+  ]));
+
+  box.appendChild(form);
+
+  const actions = document.createElement('div');
+  actions.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;margin-top:20px;padding-top:20px;border-top:1px solid var(--border)';
+  actions.innerHTML = '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:var(--off-white);border:1px solid var(--border);border-radius:10px;padding:12px 22px;font-family:\'GopherDisplay\',sans-serif;font-weight:600;font-size:13px;cursor:pointer;color:var(--navy);text-transform:uppercase;letter-spacing:.05em">Annuler</button>';
+
+  const saveBtn = document.createElement('button');
+  saveBtn.style.cssText = 'background:var(--navy);color:var(--cyan);border:none;border-radius:10px;padding:12px 26px;font-family:\'GopherDisplay\',sans-serif;font-weight:600;font-size:13px;cursor:pointer;text-transform:uppercase;letter-spacing:.05em';
+  saveBtn.textContent = interviewId ? 'Enregistrer' : 'Ajouter l\'entretien';
+  saveBtn.onclick = async () => {
+    const inputs = ov.querySelectorAll('[data-field]');
+    const data = { user_email: state.user.email, application_id: appId, rating: currentRating };
+    inputs.forEach(i => {
+      const val = i.value.trim();
+      data[i.dataset.field] = val || null;
+    });
+    if (!data.stage) { alert('L\'étape est obligatoire.'); return; }
+    try {
+      if (interviewId) {
+        data.updated_at = new Date().toISOString();
+        const { error } = await sb.from('application_interviews').update(data).eq('id', interviewId);
+        if (error) throw error;
+      } else {
+        const { error } = await sb.from('application_interviews').insert(data);
+        if (error) throw error;
+      }
+      ov.remove();
+      renderCarnet();
+    } catch (e) {
+      alert('Erreur : '+e.message);
+    }
+  };
+  actions.appendChild(saveBtn);
+  box.appendChild(actions);
+
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+}
+
+async function deleteInterview(interviewId) {
+  if (!confirm('Supprimer cet entretien ?')) return;
+  try {
+    const { error } = await sb.from('application_interviews').delete().eq('id', interviewId);
+    if (error) throw error;
+    renderCarnet();
+  } catch (e) {
+    alert('Erreur : '+e.message);
+  }
+}
+
+// ============================================================
+// PULSE CHECK
+// ============================================================
+function getCurrentWeekStart() {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d.setDate(diff));
+  monday.setHours(0,0,0,0);
+  return monday.toISOString().split('T')[0];
+}
+
+function formatWeekRange(weekStart) {
+  const start = new Date(weekStart);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 4);
+  return start.toLocaleDateString('fr-FR', {day:'numeric', month:'short'}) + ' au ' + end.toLocaleDateString('fr-FR', {day:'numeric', month:'short', year:'numeric'});
+}
+
+async function showPulseCheck() {
+  document.getElementById('studentView').classList.add('hidden');
+  const cv = document.getElementById('coachView'); if(cv) cv.classList.add('hidden');
+  const carnetV = document.getElementById('carnetView'); if(carnetV) carnetV.classList.add('hidden');
+
+  const cb = document.getElementById('carnetBtn');
+  if(cb) { cb.style.background='rgba(255,255,255,.04)'; cb.style.borderLeftColor='transparent'; }
+  const pb = document.getElementById('pulseBtn');
+  if(pb) { pb.style.background='rgba(114,228,229,.18)'; pb.style.borderLeftColor='var(--cyan)'; }
+
+  let view = document.getElementById('pulseView');
+  if (!view) {
+    view = document.createElement('div');
+    view.id = 'pulseView';
+    view.style.cssText = 'padding:32px 40px;max-width:780px;margin:0 auto';
+    document.querySelector('main').appendChild(view);
+  }
+  view.classList.remove('hidden');
+  renderPulseCheck();
+}
+
+let pulseState = { feeling: 0, motivation: 5, difficultyTags: [] };
+
+async function renderPulseCheck() {
+  const view = document.getElementById('pulseView');
+  if (!view) return;
+  view.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)"><div style="font-size:32px">&#9203;</div><div style="margin-top:8px">Chargement…</div></div>';
+
+  const weekStart = getCurrentWeekStart();
+  const { data: existing } = await sb.from('pulse_checks').select('*').eq('user_email', state.user.email).eq('week_start', weekStart).maybeSingle();
+  const { data: history } = await sb.from('pulse_checks').select('*').eq('user_email', state.user.email).order('week_start', { ascending: false }).limit(8);
+
+  view.innerHTML = '';
+
+  // Header
+  const header = document.createElement('div');
+  header.style.cssText = 'margin-bottom:24px';
+  header.innerHTML = '<div style="font-family:\'Gopher\',sans-serif;font-weight:700;font-size:22px;text-transform:uppercase;color:var(--navy);margin-bottom:4px">Pulse check hebdomadaire</div>'
+    + '<div style="font-size:13px;color:var(--text-muted)">Semaine du '+formatWeekRange(weekStart)+(existing ? ' · <span style="color:var(--green);font-weight:600">Déjà rempli</span>' : '')+'</div>';
+  view.appendChild(header);
+
+  // Formulaire
+  const card = document.createElement('div');
+  card.style.cssText = 'background:white;border:1px solid var(--border);border-radius:14px;padding:24px';
+
+  pulseState = {
+    feeling: existing?.feeling || 0,
+    motivation: existing?.motivation || 5,
+    difficultyTags: existing?.difficulty_tags || []
+  };
+
+  // Question 1 : Feeling
+  const q1 = pulseSection('Comment t\'es-tu senti·e cette semaine ?');
+  const emojis = ['&#128542;', '&#128533;', '&#128528;', '&#128578;', '&#128516;'];
+  const labels = ['Très difficile', 'Difficile', 'Mitigé', 'Bien', 'Très bien'];
+  const feelingRow = document.createElement('div');
+  feelingRow.style.cssText = 'display:grid;grid-template-columns:repeat(5,1fr);gap:8px';
+  emojis.forEach((emoji, idx) => {
+    const v = idx + 1;
+    const opt = document.createElement('div');
+    opt.style.cssText = 'text-align:center;padding:12px 4px;background:var(--off-white);border:2px solid transparent;border-radius:10px;cursor:pointer;transition:all .15s';
+    opt.innerHTML = '<div style="font-size:26px;margin-bottom:2px">'+emoji+'</div><div style="font-size:10px;color:var(--text-muted)">'+labels[idx]+'</div>';
+    if (pulseState.feeling === v) {
+      opt.style.background = 'var(--cyan-light)';
+      opt.style.borderColor = 'var(--cyan)';
+    }
+    opt.onclick = () => {
+      pulseState.feeling = v;
+      Array.from(feelingRow.children).forEach((d, i) => {
+        d.style.background = (i === idx) ? 'var(--cyan-light)' : 'var(--off-white)';
+        d.style.borderColor = (i === idx) ? 'var(--cyan)' : 'transparent';
+      });
+    };
+    feelingRow.appendChild(opt);
+  });
+  q1.appendChild(feelingRow);
+  card.appendChild(q1);
+
+  // Question 2 : Motivation
+  const q2 = pulseSection('Niveau de motivation actuel');
+  const motivWrap = document.createElement('div');
+  motivWrap.style.cssText = 'display:flex;align-items:center;gap:14px';
+  const motivSlider = document.createElement('input');
+  motivSlider.type = 'range'; motivSlider.min = 1; motivSlider.max = 10; motivSlider.step = 1;
+  motivSlider.value = pulseState.motivation;
+  motivSlider.style.cssText = 'flex:1;accent-color:var(--navy)';
+  const motivVal = document.createElement('div');
+  motivVal.style.cssText = 'font-size:24px;font-weight:700;color:var(--navy);min-width:60px;text-align:center;background:var(--cyan-light);padding:8px 12px;border-radius:8px';
+  motivVal.textContent = pulseState.motivation + '/10';
+  motivSlider.oninput = () => {
+    pulseState.motivation = parseInt(motivSlider.value);
+    motivVal.textContent = pulseState.motivation + '/10';
+  };
+  motivWrap.appendChild(motivSlider);
+  motivWrap.appendChild(motivVal);
+  q2.appendChild(motivWrap);
+  card.appendChild(q2);
+
+  // Question 3 : Activité (listes anti-pipo)
+  const q3 = pulseSection('Ton activité cette semaine');
+  const q3hint = document.createElement('div');
+  q3hint.style.cssText = 'font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.5';
+  q3hint.innerHTML = 'Renseigne chaque candidature et entretien de la semaine. Les éléments déjà saisis dans ton carnet de bord cette semaine sont pré-remplis automatiquement. ✨';
+  q3.appendChild(q3hint);
+
+  // ---- Liste CANDIDATURES ----
+  const candWrap = document.createElement('div');
+  candWrap.style.cssText = 'background:var(--off-white);border-radius:10px;padding:14px 16px;margin-bottom:10px';
+  const candHeader = document.createElement('div');
+  candHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px';
+  candHeader.innerHTML = '<div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;font-weight:700">&#128238; Candidatures envoyées</div><div id="candCounter" style="background:var(--navy);color:var(--cyan);padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700">0</div>';
+  candWrap.appendChild(candHeader);
+  const candList = document.createElement('div');
+  candList.id = 'pulseCandList';
+  candList.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-bottom:8px';
+  candWrap.appendChild(candList);
+  const addCandBtn = document.createElement('button');
+  addCandBtn.style.cssText = 'width:100%;background:white;border:1px dashed var(--cyan);color:var(--navy);border-radius:8px;padding:8px;cursor:pointer;font-size:12px;font-family:\'GopherDisplay\',sans-serif;font-weight:600';
+  addCandBtn.innerHTML = '+ Ajouter une candidature';
+  addCandBtn.onclick = () => addPulseListRow('cand', null, null, null);
+  candWrap.appendChild(addCandBtn);
+  q3.appendChild(candWrap);
+
+  // ---- Liste ENTRETIENS ----
+  const itvWrap = document.createElement('div');
+  itvWrap.style.cssText = 'background:var(--off-white);border-radius:10px;padding:14px 16px';
+  const itvHeader = document.createElement('div');
+  itvHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px';
+  itvHeader.innerHTML = '<div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;font-weight:700">&#128172; Entretiens passés/prévus</div><div id="itvCounter" style="background:var(--navy);color:var(--cyan);padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700">0</div>';
+  itvWrap.appendChild(itvHeader);
+  const itvList = document.createElement('div');
+  itvList.id = 'pulseItvList';
+  itvList.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-bottom:8px';
+  itvWrap.appendChild(itvList);
+  const addItvPulseBtn = document.createElement('button');
+  addItvPulseBtn.style.cssText = 'width:100%;background:white;border:1px dashed var(--cyan);color:var(--navy);border-radius:8px;padding:8px;cursor:pointer;font-size:12px;font-family:\'GopherDisplay\',sans-serif;font-weight:600';
+  addItvPulseBtn.innerHTML = '+ Ajouter un entretien';
+  addItvPulseBtn.onclick = () => addPulseListRow('itv', null, null, null);
+  itvWrap.appendChild(addItvPulseBtn);
+  q3.appendChild(itvWrap);
+
+  card.appendChild(q3);
+
+  // Auto-rappel depuis le carnet : pré-remplir avec ce qui a été saisi cette semaine
+  const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 6);
+  const wkStartStr = weekStart;
+  const wkEndStr = weekEnd.toISOString().split('T')[0];
+
+  try {
+    const { data: weekApps } = await sb.from('applications').select('company,position,applied_at,created_at').eq('user_email', state.user.email).or('applied_at.gte.'+wkStartStr+',applied_at.lte.'+wkEndStr+',and(applied_at.is.null,created_at.gte.'+wkStartStr+')');
+    const { data: weekItvs } = await sb.from('application_interviews').select('stage,interview_date,applications(company,position)').eq('user_email', state.user.email).gte('interview_date', wkStartStr).lte('interview_date', wkEndStr);
+
+    // Pré-remplir applications (existing > auto > vide)
+    let candList_data = [];
+    if (existing && existing.applications_detail) {
+      try { candList_data = JSON.parse(existing.applications_detail) || []; } catch(e) {}
+    }
+    if (candList_data.length === 0 && weekApps) {
+      candList_data = weekApps.filter(a => {
+        if (a.applied_at) return a.applied_at >= wkStartStr && a.applied_at <= wkEndStr;
+        return a.created_at >= wkStartStr + 'T00:00:00';
+      }).map(a => ({ company: a.company, position: a.position || '', auto: true }));
+    }
+    if (candList_data.length === 0) addPulseListRow('cand', '', '', false);
+    else candList_data.forEach(c => addPulseListRow('cand', c.company, c.position, c.auto));
+
+    // Pré-remplir entretiens
+    let itvList_data = [];
+    if (existing && existing.interviews_detail) {
+      try { itvList_data = JSON.parse(existing.interviews_detail) || []; } catch(e) {}
+    }
+    if (itvList_data.length === 0 && weekItvs) {
+      itvList_data = weekItvs.map(i => ({
+        company: i.applications?.company || '?',
+        position: i.applications?.position || i.stage || '',
+        auto: true
+      }));
+    }
+    if (itvList_data.length === 0) addPulseListRow('itv', '', '', false);
+    else itvList_data.forEach(i => addPulseListRow('itv', i.company, i.position, i.auto));
+
+  } catch(e) {
+    console.warn('Pulse auto-fill:', e.message);
+    addPulseListRow('cand', '', '', false);
+    addPulseListRow('itv', '', '', false);
+  }
+
+  // Question 4 : Top moments
+  const q4 = pulseSection('Top moments de la semaine');
+  const topTa = document.createElement('textarea');
+  topTa.style.cssText = 'width:100%;padding:10px 12px;background:var(--off-white);border:1px solid var(--border);border-radius:8px;font-family:\'GopherDisplay\',sans-serif;font-size:13px;color:var(--navy);resize:vertical;min-height:70px;box-sizing:border-box';
+  topTa.placeholder = 'Ce qui s\'est bien passé, tes victoires, tes apprentissages…';
+  topTa.value = existing?.top_moments || '';
+  topTa.dataset.field = 'top_moments';
+  q4.appendChild(topTa);
+  card.appendChild(q4);
+
+  // Question 5 : Difficultés
+  const q5 = pulseSection('Difficultés rencontrées');
+  const tagsRow = document.createElement('div');
+  tagsRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px';
+  DIFFICULTY_TAGS.forEach(tag => {
+    const t = document.createElement('span');
+    const active = pulseState.difficultyTags.includes(tag);
+    t.style.cssText = 'padding:5px 14px;border-radius:20px;font-size:11px;cursor:pointer;border:1px solid '+(active ? '#e07b39' : 'var(--border)')+';background:'+(active ? '#fff3e0' : 'var(--off-white)')+';color:'+(active ? '#e07b39' : 'var(--text-muted)')+';font-weight:600;transition:all .15s';
+    t.textContent = tag;
+    t.onclick = () => {
+      const idx = pulseState.difficultyTags.indexOf(tag);
+      if (idx >= 0) pulseState.difficultyTags.splice(idx, 1);
+      else pulseState.difficultyTags.push(tag);
+      const nowActive = pulseState.difficultyTags.includes(tag);
+      t.style.borderColor = nowActive ? '#e07b39' : 'var(--border)';
+      t.style.background = nowActive ? '#fff3e0' : 'var(--off-white)';
+      t.style.color = nowActive ? '#e07b39' : 'var(--text-muted)';
+    };
+    tagsRow.appendChild(t);
+  });
+  q5.appendChild(tagsRow);
+  const diffTa = document.createElement('textarea');
+  diffTa.style.cssText = 'width:100%;padding:10px 12px;background:var(--off-white);border:1px solid var(--border);border-radius:8px;font-family:\'GopherDisplay\',sans-serif;font-size:13px;color:var(--navy);resize:vertical;min-height:60px;box-sizing:border-box';
+  diffTa.placeholder = 'Précise tes difficultés si tu veux en parler…';
+  diffTa.value = existing?.difficulties || '';
+  diffTa.dataset.field = 'difficulties';
+  q5.appendChild(diffTa);
+  card.appendChild(q5);
+
+  // Question 6 : Objectifs
+  const q6 = pulseSection('Objectifs pour la semaine prochaine (3 max)');
+  for (let i = 1; i <= 3; i++) {
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.style.cssText = 'width:100%;padding:10px 12px;background:var(--off-white);border:1px solid var(--border);border-radius:8px;font-family:\'GopherDisplay\',sans-serif;font-size:13px;color:var(--navy);margin-bottom:6px;box-sizing:border-box';
+    inp.placeholder = 'Objectif '+i+'…';
+    inp.value = existing?.['goal_'+i] || '';
+    inp.dataset.field = 'goal_'+i;
+    q6.appendChild(inp);
+  }
+  card.appendChild(q6);
+
+  // Question 7 : Question coach
+  const q7 = pulseSection('Une question pour ton coach ? (optionnel)');
+  const coachTa = document.createElement('textarea');
+  coachTa.style.cssText = 'width:100%;padding:10px 12px;background:var(--off-white);border:1px solid var(--border);border-radius:8px;font-family:\'GopherDisplay\',sans-serif;font-size:13px;color:var(--navy);resize:vertical;min-height:60px;box-sizing:border-box';
+  coachTa.placeholder = 'Un blocage, une question, un besoin de feedback…';
+  coachTa.value = existing?.coach_question || '';
+  coachTa.dataset.field = 'coach_question';
+  q7.appendChild(coachTa);
+  card.appendChild(q7);
+
+  // Bouton submit
+  const submitBtn = document.createElement('button');
+  submitBtn.style.cssText = 'width:100%;background:var(--navy);color:var(--cyan);border:none;border-radius:10px;padding:16px;font-family:\'GopherDisplay\',sans-serif;font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;margin-top:20px';
+  submitBtn.textContent = existing ? 'Mettre à jour mon pulse →' : 'Envoyer mon pulse →';
+  submitBtn.onclick = () => savePulse(existing?.id, card);
+  card.appendChild(submitBtn);
+
+  view.appendChild(card);
+
+  // Historique
+  if ((history || []).length > 0) {
+    const histTitle = document.createElement('div');
+    histTitle.style.cssText = 'margin:32px 0 12px;font-family:\'Gopher\',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;color:var(--navy);letter-spacing:.05em';
+    histTitle.textContent = 'Tes derniers pulses';
+    view.appendChild(histTitle);
+
+    const histList = document.createElement('div');
+    histList.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+    history.forEach(p => {
+      const emoji = emojis[(p.feeling || 1) - 1] || '😐';
+      const row = document.createElement('div');
+      row.style.cssText = 'background:white;border:1px solid var(--border);border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:14px;font-size:13px';
+      row.innerHTML = '<div style="font-size:24px">'+emoji+'</div>'
+        + '<div style="flex:1"><div style="font-weight:600;color:var(--navy)">Semaine du '+formatWeekRange(p.week_start)+'</div>'
+        + '<div style="font-size:11px;color:var(--text-muted);margin-top:2px">Motivation '+(p.motivation||'—')+'/10 · '+(p.applications_count||0)+' candidatures · '+(p.interviews_count||0)+' entretiens</div></div>';
+      histList.appendChild(row);
+    });
+    view.appendChild(histList);
+  }
+}
+
+function pulseSection(title) {
+  const s = document.createElement('div');
+  s.style.cssText = 'margin-bottom:18px';
+  s.innerHTML = '<div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">'+title+'</div>';
+  return s;
+}
+
+function addPulseListRow(type, company, position, isAuto) {
+  const listId = type === 'cand' ? 'pulseCandList' : 'pulseItvList';
+  const list = document.getElementById(listId);
+  if (!list) return;
+
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:6px;align-items:center;background:white;border:1px solid var(--border);border-radius:8px;padding:8px 10px';
+  row.dataset.type = type;
+
+  const companyInput = document.createElement('input');
+  companyInput.type = 'text';
+  companyInput.placeholder = 'Entreprise';
+  companyInput.value = company || '';
+  companyInput.dataset.field = 'company';
+  companyInput.style.cssText = 'flex:1;min-width:0;padding:6px 10px;background:var(--off-white);border:1px solid var(--border);border-radius:6px;font-family:\'GopherDisplay\',sans-serif;font-size:13px;color:var(--navy);box-sizing:border-box';
+  row.appendChild(companyInput);
+
+  const positionInput = document.createElement('input');
+  positionInput.type = 'text';
+  positionInput.placeholder = 'Poste';
+  positionInput.value = position || '';
+  positionInput.dataset.field = 'position';
+  positionInput.style.cssText = 'flex:1;min-width:0;padding:6px 10px;background:var(--off-white);border:1px solid var(--border);border-radius:6px;font-family:\'GopherDisplay\',sans-serif;font-size:13px;color:var(--navy);box-sizing:border-box';
+  row.appendChild(positionInput);
+
+  if (isAuto) {
+    const autoBadge = document.createElement('span');
+    autoBadge.style.cssText = 'background:var(--cyan-light);color:var(--navy);padding:3px 8px;border-radius:12px;font-size:10px;font-weight:700;white-space:nowrap';
+    autoBadge.title = 'Importé depuis ton carnet';
+    autoBadge.textContent = '✨ Auto';
+    row.appendChild(autoBadge);
+  }
+
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.style.cssText = 'background:transparent;border:1px solid var(--border);border-radius:6px;width:28px;height:28px;cursor:pointer;color:#e74c3c;font-size:14px;font-family:inherit;flex-shrink:0;padding:0';
+  removeBtn.innerHTML = '&times;';
+  removeBtn.onclick = () => { row.remove(); updatePulseCounters(); };
+  row.appendChild(removeBtn);
+
+  list.appendChild(row);
+  updatePulseCounters();
+}
+
+function updatePulseCounters() {
+  const candList = document.getElementById('pulseCandList');
+  const itvList = document.getElementById('pulseItvList');
+  const candCounter = document.getElementById('candCounter');
+  const itvCounter = document.getElementById('itvCounter');
+  
+  if (candList && candCounter) {
+    // Compter les lignes avec entreprise OU poste remplis
+    let candFilled = 0;
+    Array.from(candList.children).forEach(row => {
+      const inputs = row.querySelectorAll('input');
+      if (inputs[0] && inputs[0].value.trim()) candFilled++;
+    });
+    candCounter.textContent = candFilled;
+  }
+  if (itvList && itvCounter) {
+    let itvFilled = 0;
+    Array.from(itvList.children).forEach(row => {
+      const inputs = row.querySelectorAll('input');
+      if (inputs[0] && inputs[0].value.trim()) itvFilled++;
+    });
+    itvCounter.textContent = itvFilled;
+  }
+}
+
+// Recalcul des compteurs à chaque saisie
+document.addEventListener('input', function(e) {
+  if (e.target && e.target.closest && (e.target.closest('#pulseCandList') || e.target.closest('#pulseItvList'))) {
+    updatePulseCounters();
+  }
+});
+
+async function savePulse(existingId, container) {
+  if (pulseState.feeling === 0) {
+    alert('Merci de sélectionner ton ressenti général de la semaine.');
+    return;
+  }
+
+  // Récupérer les listes de candidatures et entretiens
+  const candList = document.getElementById('pulseCandList');
+  const itvList = document.getElementById('pulseItvList');
+  const candidates = [];
+  const interviews = [];
+  if (candList) {
+    Array.from(candList.children).forEach(row => {
+      const inputs = row.querySelectorAll('input');
+      const company = inputs[0]?.value?.trim();
+      const position = inputs[1]?.value?.trim();
+      if (company) candidates.push({ company: company, position: position || '' });
+    });
+  }
+  if (itvList) {
+    Array.from(itvList.children).forEach(row => {
+      const inputs = row.querySelectorAll('input');
+      const company = inputs[0]?.value?.trim();
+      const position = inputs[1]?.value?.trim();
+      if (company) interviews.push({ company: company, position: position || '' });
+    });
+  }
+
+  const data = {
+    user_email: state.user.email,
+    week_start: getCurrentWeekStart(),
+    feeling: pulseState.feeling,
+    motivation: pulseState.motivation,
+    difficulty_tags: pulseState.difficultyTags,
+    applications_count: candidates.length,
+    interviews_count: interviews.length,
+    applications_detail: JSON.stringify(candidates),
+    interviews_detail: JSON.stringify(interviews)
+  };
+
+  // Récupérer les autres champs (textareas et objectifs)
+  container.querySelectorAll('[data-field]').forEach(i => {
+    if (i.closest('#pulseCandList') || i.closest('#pulseItvList')) return;
+    const val = (i.value || '').toString().trim();
+    if (i.type === 'number') data[i.dataset.field] = parseInt(val) || 0;
+    else data[i.dataset.field] = val || null;
+  });
+
+  try {
+    if (existingId) {
+      const { error } = await sb.from('pulse_checks').update(data).eq('id', existingId);
+      if (error) throw error;
+    } else {
+      const { error } = await sb.from('pulse_checks').insert(data);
+      if (error) throw error;
+    }
+    alert('✅ Pulse enregistré. Merci pour ton retour !');
+    renderPulseCheck();
+  } catch (e) {
+    alert('Erreur : '+e.message);
+  }
+}
+
+
+// ============================================================
+// VUE COACH DÉTAILLÉE (remplace showCoachCarnet)
+// ============================================================
+
+async function showCoachCarnet(email, name) {
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(13,21,92,.75);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:40px 24px;overflow-y:auto';
+  ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:white;border-radius:16px;max-width:920px;width:100%;padding:28px;box-shadow:0 24px 60px rgba(13,21,92,.25)';
+
+  box.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px"><div><div style="font-family:\'Gopher\',sans-serif;font-weight:700;font-size:18px;text-transform:uppercase;color:var(--navy);margin-bottom:3px">&#128218; Carnet de bord</div><div style="font-size:13px;color:var(--text-muted)">'+escapeHtml(name)+' &mdash; '+escapeHtml(email)+'</div></div><button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;color:var(--navy);font-family:inherit">&times; Fermer</button></div>';
+
+  const loading = document.createElement('div');
+  loading.style.cssText = 'text-align:center;padding:40px;color:var(--text-muted)';
+  loading.innerHTML = '<div style="font-size:28px">&#9203;</div><div>Chargement…</div>';
+  box.appendChild(loading);
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+
+  try {
+    const [{data: apps}, {data: interviews}, {data: pulses}] = await Promise.all([
+      sb.from('applications').select('*').eq('user_email', email).order('created_at', { ascending: false }),
+      sb.from('application_interviews').select('*').eq('user_email', email).order('interview_date', { ascending: false }),
+      sb.from('pulse_checks').select('*').eq('user_email', email).order('week_start', { ascending: false }).limit(8)
+    ]);
+
+    loading.remove();
+
+    const applications = apps || [];
+    const interviewsList = interviews || [];
+    const pulsesList = pulses || [];
+    const interviewsByApp = {};
+    interviewsList.forEach(i => {
+      if (!interviewsByApp[i.application_id]) interviewsByApp[i.application_id] = [];
+      interviewsByApp[i.application_id].push(i);
+    });
+
+    // STATS GLOBALES
+    const inProgress = applications.filter(a => ['applied','responded','interviewing'].includes(a.status)).length;
+    const offers = applications.filter(a => a.status === 'accepted').length;
+    const totalItv = interviewsList.length;
+    const lastPulse = pulsesList[0];
+
+    const stats = document.createElement('div');
+    stats.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px';
+    [
+      ['Candidatures', applications.length, 'var(--navy)', 'white'],
+      ['En cours', inProgress, 'var(--cyan-light)', 'var(--navy)'],
+      ['Entretiens', totalItv, '#fff8e8', '#b07800'],
+      ['Offres reçues', offers, 'var(--green-light)', 'var(--green)']
+    ].forEach(([label, val, bg, fg]) => {
+      const c = document.createElement('div');
+      c.style.cssText = 'background:'+bg+';border-radius:10px;padding:14px 16px';
+      c.innerHTML = '<div style="font-weight:700;font-size:24px;color:'+fg+';line-height:1">'+val+'</div>'
+        + '<div style="font-size:11px;color:'+fg+';opacity:.75;margin-top:4px">'+label+'</div>';
+      stats.appendChild(c);
+    });
+    box.appendChild(stats);
+
+    // BLOC PULSE CHECK
+    const pulseBox = document.createElement('div');
+    pulseBox.style.cssText = 'background:var(--off-white);border-radius:12px;padding:18px;margin-bottom:20px';
+    pulseBox.innerHTML = '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);letter-spacing:.05em;margin-bottom:12px">&#128202; Pulse check</div>';
+
+    if (lastPulse) {
+      const emojis = ['😞', '😕', '😐', '🙂', '😄'];
+      const motivColor = lastPulse.motivation >= 7 ? 'var(--green)' : (lastPulse.motivation >= 5 ? '#b07800' : '#e74c3c');
+      pulseBox.innerHTML += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">'
+        + '<div style="background:white;border-radius:8px;padding:10px 12px"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600;margin-bottom:4px">Feeling</div><div style="font-size:24px">'+emojis[(lastPulse.feeling||1)-1]+'</div></div>'
+        + '<div style="background:white;border-radius:8px;padding:10px 12px"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600;margin-bottom:4px">Motivation</div><div style="font-size:18px;font-weight:700;color:'+motivColor+'">'+(lastPulse.motivation||'—')+'/10</div></div>'
+        + '<div style="background:white;border-radius:8px;padding:10px 12px"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600;margin-bottom:4px">Candidatures sem.</div><div style="font-size:18px;font-weight:700;color:var(--navy)">'+(lastPulse.applications_count||0)+'</div></div>'
+        + '<div style="background:white;border-radius:8px;padding:10px 12px"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600;margin-bottom:4px">Entretiens sem.</div><div style="font-size:18px;font-weight:700;color:var(--navy)">'+(lastPulse.interviews_count||0)+'</div></div>'
+        + '</div>';
+
+      if (lastPulse.top_moments) pulseBox.innerHTML += '<div style="background:var(--green-light);border-radius:8px;padding:10px 12px;margin-bottom:8px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--green);margin-bottom:4px">&#11088; Top moments</div><div style="font-size:12px;color:#0a4a3a;line-height:1.5;white-space:pre-wrap">'+escapeHtml(lastPulse.top_moments)+'</div></div>';
+      if (lastPulse.difficulties || (lastPulse.difficulty_tags||[]).length) {
+        let diffHtml = '<div style="background:#fff8e8;border-radius:8px;padding:10px 12px;margin-bottom:8px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#b07800;margin-bottom:6px">&#9888; Difficultés</div>';
+        if ((lastPulse.difficulty_tags||[]).length) diffHtml += '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">'+lastPulse.difficulty_tags.map(t => '<span style="background:#fff3e0;color:#e07b39;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">'+escapeHtml(t)+'</span>').join('')+'</div>';
+        if (lastPulse.difficulties) diffHtml += '<div style="font-size:12px;color:#5a4010;line-height:1.5;white-space:pre-wrap">'+escapeHtml(lastPulse.difficulties)+'</div>';
+        diffHtml += '</div>';
+        pulseBox.innerHTML += diffHtml;
+      }
+      const goals = [lastPulse.goal_1, lastPulse.goal_2, lastPulse.goal_3].filter(Boolean);
+      if (goals.length) pulseBox.innerHTML += '<div style="background:var(--cyan-light);border-radius:8px;padding:10px 12px;margin-bottom:8px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--navy);margin-bottom:6px">&#127919; Objectifs semaine prochaine</div><ul style="margin:0;padding-left:20px;font-size:12px;color:var(--navy);line-height:1.6">'+goals.map(g => '<li>'+escapeHtml(g)+'</li>').join('')+'</ul></div>';
+      if (lastPulse.coach_question) pulseBox.innerHTML += '<div style="background:#fff0f8;border:1px solid #ffcce0;border-radius:8px;padding:10px 12px;margin-bottom:8px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#c4307a;margin-bottom:4px">&#10067; Question pour toi</div><div style="font-size:12px;color:#5a1840;line-height:1.5;white-space:pre-wrap">'+escapeHtml(lastPulse.coach_question)+'</div></div>';
+
+      // Détails candidatures et entretiens
+      let candDetailsList = [];
+      let itvDetailsList = [];
+      try { if (lastPulse.applications_detail) candDetailsList = JSON.parse(lastPulse.applications_detail) || []; } catch(e) {}
+      try { if (lastPulse.interviews_detail) itvDetailsList = JSON.parse(lastPulse.interviews_detail) || []; } catch(e) {}
+
+      if (candDetailsList.length > 0) {
+        pulseBox.innerHTML += '<div style="background:white;border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">&#128238; Détail des candidatures ('+candDetailsList.length+')</div><div style="display:flex;flex-direction:column;gap:4px">'
+          + candDetailsList.map(c => '<div style="font-size:12px;color:var(--navy);padding:4px 8px;background:var(--off-white);border-radius:6px"><strong>'+escapeHtml(c.company)+'</strong>'+(c.position ? ' &mdash; '+escapeHtml(c.position) : '')+'</div>').join('')
+          + '</div></div>';
+      }
+      if (itvDetailsList.length > 0) {
+        pulseBox.innerHTML += '<div style="background:white;border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">&#128172; Détail des entretiens ('+itvDetailsList.length+')</div><div style="display:flex;flex-direction:column;gap:4px">'
+          + itvDetailsList.map(i => '<div style="font-size:12px;color:var(--navy);padding:4px 8px;background:var(--off-white);border-radius:6px"><strong>'+escapeHtml(i.company)+'</strong>'+(i.position ? ' &mdash; '+escapeHtml(i.position) : '')+'</div>').join('')
+          + '</div></div>';
+      }
+
+      pulseBox.innerHTML += '<div style="font-size:11px;color:var(--text-muted);margin-top:10px">Semaine du '+formatWeekRange(lastPulse.week_start)+'</div>';
+    } else {
+      pulseBox.innerHTML += '<div style="font-size:13px;color:var(--text-muted);font-style:italic">Aucun pulse rempli pour le moment.</div>';
+    }
+
+    // Historique pulses
+    if (pulsesList.length > 1) {
+      pulseBox.innerHTML += '<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px">Historique</div><div style="display:flex;gap:8px;flex-wrap:wrap">'
+        + pulsesList.slice(1).map(p => {
+          const emojis = ['😞', '😕', '😐', '🙂', '😄'];
+          return '<div style="background:white;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:11px;display:flex;align-items:center;gap:6px"><span style="font-size:14px">'+emojis[(p.feeling||1)-1]+'</span><span style="color:var(--text-muted)">'+formatWeekRange(p.week_start).split(' au ')[0]+'</span><span style="font-weight:700;color:var(--navy)">'+(p.motivation||'—')+'/10</span></div>';
+        }).join('')
+        + '</div></div>';
+    }
+
+    box.appendChild(pulseBox);
+
+    // BLOC CANDIDATURES
+    const appsBox = document.createElement('div');
+    appsBox.innerHTML = '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);letter-spacing:.05em;margin-bottom:12px">&#128221; Candidatures ('+applications.length+')</div>';
+
+    if (applications.length === 0) {
+      appsBox.innerHTML += '<div style="background:var(--off-white);border-radius:10px;padding:24px;text-align:center;color:var(--text-muted);font-size:13px">Aucune candidature pour l\'instant.</div>';
+    } else {
+      applications.forEach(app => {
+        const itvs = interviewsByApp[app.id] || [];
+        const status = APP_STATUSES[app.status] || APP_STATUSES.to_apply;
+        const card = document.createElement('div');
+        card.style.cssText = 'background:var(--off-white);border-radius:10px;padding:14px 16px;margin-bottom:8px';
+        card.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px"><div><div style="font-weight:700;color:var(--navy);font-size:14px">'+escapeHtml(app.company)+'</div><div style="font-size:11px;color:var(--text-muted)">'+escapeHtml(app.position || '—')+(app.sector ? ' · '+escapeHtml(app.sector) : '')+'</div></div><span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600;background:'+status.bg+';color:'+status.color+';white-space:nowrap">'+status.label+'</span></div>'
+          + '<div style="font-size:11px;color:var(--text-muted)">'+itvs.length+' entretien'+(itvs.length>1?'s':'')+(app.applied_at ? ' · candidaté le '+new Date(app.applied_at).toLocaleDateString('fr-FR') : '')+'</div>';
+        appsBox.appendChild(card);
+      });
+    }
+    box.appendChild(appsBox);
+
+  } catch (e) {
+    loading.remove();
+    box.innerHTML += '<div style="background:#fff0f0;padding:16px;border-radius:8px;color:#c00">Erreur : '+escapeHtml(e.message)+'</div>';
+  }
+}
+
 
 function toggleSidebar(){const s=document.querySelector('.sidebar'),o=document.getElementById('sidebarOverlay');s.classList.toggle('open');o.classList.toggle('open');document.body.style.overflow=s.classList.contains('open')?'hidden':'';}
 function closeSidebar(){const s=document.querySelector('.sidebar'),o=document.getElementById('sidebarOverlay');s.classList.remove('open');o.classList.remove('open');document.body.style.overflow='';}
