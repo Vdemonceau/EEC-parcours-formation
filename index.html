@@ -1433,23 +1433,99 @@ async function loadMessagesIntoTab(){
   if (!container) return;
   try {
     const { data: msgs } = await sb.from('messages').select('*').order('created_at',{ascending:false}).limit(50);
-    if (!msgs || msgs.length === 0) {
-      container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted)">Aucun message pour l\'instant.</div>';
-      return;
-    }
-    container.innerHTML = '<div style="padding:14px 20px;border-bottom:1px solid var(--border)"><span style="font-family:\'Gopher\',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--navy)">Messages d\'aide ('+msgs.length+')</span></div>'
-      + '<div style="padding:0">'
-      + msgs.map(m => '<div style="padding:14px 20px;border-bottom:1px solid var(--off-white)">'
-          + '<div style="display:flex;justify-content:space-between;align-items:start;gap:10px;margin-bottom:6px">'
-          + '<div><div style="font-weight:600;color:var(--navy);font-size:13px">'+escapeHtml(m.from_name || m.from_email || 'Anonyme')+'</div>'
-          + '<div style="font-size:11px;color:var(--text-muted)">'+new Date(m.created_at).toLocaleString('fr-FR')+'</div></div>'
-          + (m.read ? '<span style="background:var(--green-light);color:var(--green);padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600">&#10003; Lu</span>' : '<button onclick="markMsgRead(\''+m.id+'\', this)" style="background:var(--cyan-light);border:1px solid var(--cyan);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--navy);cursor:pointer;font-family:inherit;font-weight:600">Marquer lu</button>')
-          + '</div>'
-          + '<div style="font-size:13px;color:var(--navy);line-height:1.5;white-space:pre-wrap">'+escapeHtml(m.body || '')+'</div>'
-        + '</div>').join('')
-      + '</div>';
+    window._allMessages = msgs || [];
+    renderMessagesList(window._allMessages, '');
   } catch (e) {
     container.innerHTML = '<div style="padding:20px;color:#c00">Erreur : '+e.message+'</div>';
+  }
+}
+
+function renderMessagesList(msgs, searchTerm) {
+  const container = document.getElementById('messagesContent');
+  if (!container) return;
+
+  // Filtrer selon le terme de recherche
+  const term = (searchTerm || '').toLowerCase().trim();
+  const filtered = term ? msgs.filter(m => {
+    const haystack = ((m.user_name || '') + ' ' + (m.user_email || '') + ' ' + (m.content || m.body || '')).toLowerCase();
+    return haystack.includes(term);
+  }) : msgs;
+
+  const headerHtml = '<div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">'
+    + '<span style="font-family:\'Gopher\',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--navy)">Messages d\'aide (' + filtered.length + (term ? ' / ' + msgs.length : '') + ')</span>'
+    + '<input type="text" id="messageSearch" placeholder="Rechercher..." value="' + escapeAttr(term) + '" oninput="searchMessages(this.value)" style="border:1px solid var(--border);border-radius:7px;padding:6px 12px;font-size:13px;font-family:\'GopherDisplay\',sans-serif;color:var(--navy);outline:none;width:220px">'
+    + '</div>';
+
+  if (msgs.length === 0) {
+    container.innerHTML = headerHtml + '<div style="text-align:center;padding:30px;color:var(--text-muted)">Aucun message pour l\'instant.</div>';
+    return;
+  }
+  if (filtered.length === 0) {
+    container.innerHTML = headerHtml + '<div style="text-align:center;padding:30px;color:var(--text-muted)">Aucun message ne correspond à ta recherche.</div>';
+    // Replacer le focus dans le champ de recherche
+    setTimeout(() => {
+      const el = document.getElementById('messageSearch');
+      if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    }, 0);
+    return;
+  }
+
+  const moduleLabel = (mid) => {
+    if (mid === null || mid === undefined) return '';
+    if (typeof MODULES !== 'undefined' && MODULES[mid]) return 'Module #' + MODULES[mid].num + ' — ' + MODULES[mid].title;
+    return 'Module #' + mid;
+  };
+
+  container.innerHTML = headerHtml
+    + '<div style="padding:0">'
+    + filtered.map(m => {
+        const displayName = m.user_name || m.user_email || 'Anonyme';
+        const displayEmail = m.user_name && m.user_email ? m.user_email : '';
+        const modLabel = moduleLabel(m.module_id);
+        return '<div style="padding:14px 20px;border-bottom:1px solid var(--off-white)" data-msg-id="' + m.id + '">'
+          + '<div style="display:flex;justify-content:space-between;align-items:start;gap:10px;margin-bottom:8px">'
+          + '<div style="flex:1;min-width:0">'
+          + '<div style="font-weight:600;color:var(--navy);font-size:13px">' + escapeHtml(displayName) + '</div>'
+          + (displayEmail ? '<div style="font-size:11px;color:var(--text-muted);margin-top:1px">' + escapeHtml(displayEmail) + '</div>' : '')
+          + '<div style="font-size:11px;color:var(--text-muted);margin-top:3px">' + new Date(m.created_at).toLocaleString('fr-FR') + (modLabel ? ' &middot; ' + escapeHtml(modLabel) : '') + '</div>'
+          + '</div>'
+          + '<div style="display:flex;gap:6px;flex-shrink:0;align-items:center">'
+          + (m.read ? '<span style="background:var(--green-light);color:var(--green);padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap">&#10003; Lu</span>' : '<button onclick="markMsgRead(\''+m.id+'\', this)" style="background:var(--cyan-light);border:1px solid var(--cyan);border-radius:6px;padding:5px 12px;font-size:11px;color:var(--navy);cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap">Marquer lu</button>')
+          + '<button onclick="deleteMessage(\''+m.id+'\')" title="Supprimer ce message" style="background:white;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:13px;color:#e74c3c;cursor:pointer;font-family:inherit">&#128465;</button>'
+          + '</div>'
+          + '</div>'
+          + '<div style="font-size:13px;color:var(--navy);line-height:1.5;white-space:pre-wrap;background:var(--off-white);padding:10px 12px;border-radius:8px">' + escapeHtml(m.content || m.body || '(message vide)') + '</div>'
+        + '</div>';
+      }).join('')
+    + '</div>';
+
+  // Replacer le focus + curseur en fin si on était en train de chercher
+  if (term) {
+    setTimeout(() => {
+      const el = document.getElementById('messageSearch');
+      if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    }, 0);
+  }
+}
+
+function searchMessages(term) {
+  if (!window._allMessages) return;
+  renderMessagesList(window._allMessages, term);
+}
+
+async function deleteMessage(id) {
+  if (!confirm('Supprimer ce message ? Cette action est irréversible.')) return;
+  try {
+    const { error } = await sb.from('messages').delete().eq('id', id);
+    if (error) throw error;
+    // Retirer le message de la liste en mémoire
+    window._allMessages = (window._allMessages || []).filter(m => m.id !== id);
+    // Re-rendre avec le terme de recherche actuel
+    const searchInput = document.getElementById('messageSearch');
+    const term = searchInput ? searchInput.value : '';
+    renderMessagesList(window._allMessages, term);
+  } catch (e) {
+    alert('Erreur lors de la suppression : ' + e.message);
   }
 }
 
