@@ -771,9 +771,43 @@ function navClick(i){
 }
 
 function updateProgress(){
-  const pct=(state.completedModules.size/MODULES.length*100).toFixed(0);
+  const previousCompleted = window._previousCompletedCount || 0;
+  const nowCompleted = state.completedModules.size;
+  
+  const pct=(nowCompleted/MODULES.length*100).toFixed(0);
   document.getElementById('progressFill').style.width=pct+'%';
-  document.getElementById('progressCount').textContent=state.completedModules.size;
+  document.getElementById('progressCount').textContent=nowCompleted;
+  
+  // Rebuild la sidebar si le parcours bascule en "terminé"
+  if (typeof rebuildSidebar === 'function') {
+    rebuildSidebar();
+  }
+  
+  // Si on vient de passer le seuil de 10 modules (et qu'on n'est pas coach), notifier les coachs
+  if (previousCompleted < 10 && nowCompleted >= 10 && state.user && !isCoach(state.user.email)) {
+    notifyCompletionIfNeeded();
+  }
+  
+  window._previousCompletedCount = nowCompleted;
+}
+
+async function notifyCompletionIfNeeded() {
+  if (!state.user || !state.user.email) return;
+  try {
+    const { data: u } = await sb.from('users').select('completed_notified').eq('email', state.user.email).maybeSingle();
+    if (u && u.completed_notified) return;
+    
+    await fetch('https://lumkeksqyfowqbkcmncc.supabase.co/functions/v1/notify-completion', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + SUPABASE_KEY
+      },
+      body: JSON.stringify({ user_email: state.user.email })
+    });
+  } catch (e) {
+    console.warn('notifyCompletion:', e);
+  }
 }
 
 function renderModule(idx){
