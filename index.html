@@ -730,7 +730,14 @@ async function doLogin(){
   if(state.completedModules.size>0)state.currentModule=Math.min(Math.max(...state.completedModules)+1,MODULES.length-1);
   updateProgress();buildNav();renderModule(state.currentModule);
   initHelpBtn();
-  if(state.completedModules.size>=(MODULES.length-1))initCarnet();
+  // Toujours initialiser carnet/pulse (la sidebar adaptera son layout selon la progression)
+  initCarnet();
+  // Injecter l'encart "J'ai déjà fait le parcours" (visible si < 10 modules complétés)
+  if(typeof injectSkipButton === 'function') injectSkipButton();
+  // Si parcours terminé : redirection auto vers le carnet de bord
+  if(state.completedModules.size>=10){
+    setTimeout(()=>{ if(typeof showCarnet === 'function') showCarnet(); }, 100);
+  }
   if(state.completedModules.size===0){
     document.getElementById('nameModal').classList.remove('hidden');
     setTimeout(()=>document.getElementById('inputPrenom').focus(), 100);
