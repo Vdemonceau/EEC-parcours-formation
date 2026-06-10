@@ -1141,6 +1141,19 @@ async function submitExercise(idx){
 }
 
 function goNext(idx){
+  // FIX : Le module 0 n'a pas d'exercice à soumettre.
+  // On le valide automatiquement dès que l'élève clique sur "Module suivant" depuis le module 0.
+  if(idx===0 && !state.completedModules.has(0)){
+    state.completedModules.add(0);
+    state.submittedModules.add(0);
+    if(state.user && state.user.email){
+      sb.from('progress').upsert(
+        {user_email:state.user.email,module_id:0,completed:true,completed_at:new Date().toISOString()},
+        {onConflict:'user_email,module_id'}
+      ).catch(function(e){console.warn('module 0 save:',e);});
+    }
+    updateProgress();
+  }
   if(idx+1<MODULES.length){
     state.currentModule=idx+1;state.currentStep[idx+1]=1;buildNav();renderModule(idx+1);
   }else{
@@ -1230,7 +1243,7 @@ async function renderCoachView(){
       var ap=appsByEmail[u.email]||{total:0,offres:0,interviewing:0};
       var itvCount=itvByEmail[u.email]||0;
       var lastP=lastPulseByEmail[u.email]||null;
-      return {name:u.name||u.email.split('@')[0],email:u.email,progress:n,ivTotal:itvCount,ivOffres:ap.offres,appsTotal:ap.total,appsInterviewing:ap.interviewing,lastPulse:lastP,
+      return {name:u.name||u.email.split('@')[0],email:u.email,progress:n,ivTotal:itvCount,ivOffres:ap.offres,appsTotal:ap.total,appsInterviewing:ap.interviewing,lastPulse:lastP,createdAt:u.created_at,
         status:n>=(MODULES.length-1)?'Termin\u00e9':n>0?'En cours':'Pas commenc\u00e9',
         lastActivity:last?new Date(last.submitted_at).toLocaleDateString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'&mdash;',
         answers:ans};
@@ -1347,15 +1360,40 @@ async function renderCoachView(){
   
   // Calcul des alertes
   const alerts = [];
+  const now = new Date();
   const twoWeeksAgo = new Date(); twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
   const currentWeekStart = getCurrentWeekStart();
+  
   students.forEach(function(s) {
-    if (s.progress > 0 && (!s.lastPulse || new Date(s.lastPulse.week_start) < twoWeeksAgo)) {
-      alerts.push({ email: s.email, name: s.name, msg: "pas de pulse depuis 2+ semaines", color: "danger" });
+    // Alerte "pas de pulse depuis 2+ semaines"
+    // Conditions strictes :
+    //   1. L'alternant doit être inscrit depuis au moins 2 semaines (sinon on ne juge pas)
+    //   2. La référence "il aurait dû remplir un 1er pulse" est sa date d'inscription
+    //   3. S'il a déjà rempli des pulses, on regarde la date du dernier pulse
+    //   4. Si plus de 2 semaines se sont écoulées depuis le dernier pulse (ou depuis son inscription s'il n'en a jamais rempli) → alerte
+    if (s.createdAt) {
+      const inscritDate = new Date(s.createdAt);
+      const inscritDepuis14j = inscritDate <= twoWeeksAgo;
+      if (inscritDepuis14j) {
+        const referenceDate = s.lastPulse ? new Date(s.lastPulse.week_start) : inscritDate;
+        if (referenceDate < twoWeeksAgo) {
+          const joursSans = Math.floor((now - referenceDate) / 86400000);
+          alerts.push({ 
+            email: s.email, 
+            name: s.name, 
+            msg: s.lastPulse ? "pas de pulse depuis " + joursSans + " jours" : "inscrit depuis " + joursSans + " jours sans aucun pulse", 
+            color: "danger" 
+          });
+        }
+      }
     }
+    
+    // Alerte motivation basse cette semaine
     if (s.lastPulse && s.lastPulse.motivation && s.lastPulse.motivation < 5 && s.lastPulse.week_start === currentWeekStart) {
       alerts.push({ email: s.email, name: s.name, msg: "motivation " + s.lastPulse.motivation + "/10 cette semaine", color: "warning" });
     }
+    
+    // Alerte question coach non traitée
     if (s.lastPulse && s.lastPulse.coach_question && !s.lastPulse.coach_question_answered) {
       alerts.push({ email: s.email, name: s.name, msg: "a posé une question dans son pulse", color: "info" });
     }
