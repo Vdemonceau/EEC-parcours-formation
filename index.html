@@ -1358,19 +1358,25 @@ async function renderCoachView(){
   const alertsBadge = document.getElementById('alertsBadge');
   const overviewPreview = document.getElementById('overviewAlertsPreview');
   
-  // Calcul des alertes
-  const alerts = [];
+  // Calcul des alertes avec signatures uniques (pour permettre la suppression définitive)
+  let dismissedSignatures = new Set();
+  try {
+    const { data: dismissed } = await sb.from('dismissed_alerts')
+      .select('alert_signature')
+      .eq('coach_email', state.user.email);
+    dismissedSignatures = new Set((dismissed || []).map(d => d.alert_signature));
+  } catch (e) {
+    console.warn('Chargement dismissed alerts:', e);
+  }
+  window._dismissedAlertSignatures = dismissedSignatures;
+  
+  const allAlerts = [];
   const now = new Date();
   const twoWeeksAgo = new Date(); twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
   const currentWeekStart = getCurrentWeekStart();
   
   students.forEach(function(s) {
     // Alerte "pas de pulse depuis 2+ semaines"
-    // Conditions strictes :
-    //   1. L'alternant doit être inscrit depuis au moins 2 semaines (sinon on ne juge pas)
-    //   2. La référence "il aurait dû remplir un 1er pulse" est sa date d'inscription
-    //   3. S'il a déjà rempli des pulses, on regarde la date du dernier pulse
-    //   4. Si plus de 2 semaines se sont écoulées depuis le dernier pulse (ou depuis son inscription s'il n'en a jamais rempli) → alerte
     if (s.createdAt) {
       const inscritDate = new Date(s.createdAt);
       const inscritDepuis14j = inscritDate <= twoWeeksAgo;
@@ -1378,11 +1384,14 @@ async function renderCoachView(){
         const referenceDate = s.lastPulse ? new Date(s.lastPulse.week_start) : inscritDate;
         if (referenceDate < twoWeeksAgo) {
           const joursSans = Math.floor((now - referenceDate) / 86400000);
-          alerts.push({ 
+          // Signature évolutive : si le nombre de jours change, l'alerte réapparaît
+          const signature = 'no_pulse:' + s.email + ':' + joursSans;
+          allAlerts.push({ 
             email: s.email, 
             name: s.name, 
             msg: s.lastPulse ? "pas de pulse depuis " + joursSans + " jours" : "inscrit depuis " + joursSans + " jours sans aucun pulse", 
-            color: "danger" 
+            color: "danger",
+            signature: signature
           });
         }
       }
@@ -1390,14 +1399,32 @@ async function renderCoachView(){
     
     // Alerte motivation basse cette semaine
     if (s.lastPulse && s.lastPulse.motivation && s.lastPulse.motivation < 5 && s.lastPulse.week_start === currentWeekStart) {
-      alerts.push({ email: s.email, name: s.name, msg: "motivation " + s.lastPulse.motivation + "/10 cette semaine", color: "warning" });
+      const signature = 'low_motiv:' + s.email + ':' + s.lastPulse.week_start + ':' + s.lastPulse.motivation;
+      allAlerts.push({ 
+        email: s.email, 
+        name: s.name, 
+        msg: "motivation " + s.lastPulse.motivation + "/10 cette semaine", 
+        color: "warning",
+        signature: signature
+      });
     }
     
     // Alerte question coach non traitée
     if (s.lastPulse && s.lastPulse.coach_question && !s.lastPulse.coach_question_answered) {
-      alerts.push({ email: s.email, name: s.name, msg: "a posé une question dans son pulse", color: "info" });
+      // Signature liée à l'id du pulse pour qu'une nouvelle question génère une nouvelle alerte
+      const signature = 'question:' + s.email + ':' + (s.lastPulse.id || s.lastPulse.week_start);
+      allAlerts.push({ 
+        email: s.email, 
+        name: s.name, 
+        msg: "a posé une question dans son pulse", 
+        color: "info",
+        signature: signature
+      });
     }
   });
+  
+  // Filtrer les alertes supprimées par ce coach
+  const alerts = allAlerts.filter(a => !dismissedSignatures.has(a.signature));
 
   // Badge dans l'onglet
   if (alertsBadge) {
@@ -1428,7 +1455,13 @@ async function renderCoachView(){
       top3.forEach(function(a) {
         const c = colorMap[a.color];
         const safeName = (a.name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:'+c.bg+';border:1px solid '+c.border+';border-radius:8px;font-size:13px"><span><strong style="color:'+c.color+'">'+a.name+'</strong> <span style="color:var(--text-muted)">·</span> '+a.msg+'</span><button onclick="showCoachCarnet(\''+a.email+'\',\''+safeName+'\')" style="background:white;border:1px solid '+c.border+';border-radius:6px;padding:4px 12px;cursor:pointer;font-size:11px;color:'+c.color+';font-family:inherit;font-weight:600">Voir &rarr;</button></div>';
+        const safeSig = (a.signature || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        html += '<div data-alert-sig="'+safeSig+'" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:'+c.bg+';border:1px solid '+c.border+';border-radius:8px;font-size:13px;gap:8px">'
+          + '<span style="flex:1;min-width:0"><strong style="color:'+c.color+'">'+a.name+'</strong> <span style="color:var(--text-muted)">·</span> '+a.msg+'</span>'
+          + '<div style="display:flex;gap:6px;flex-shrink:0">'
+          + '<button onclick="showCoachCarnet(\''+a.email+'\',\''+safeName+'\')" style="background:white;border:1px solid '+c.border+';border-radius:6px;padding:4px 12px;cursor:pointer;font-size:11px;color:'+c.color+';font-family:inherit;font-weight:600">Voir &rarr;</button>'
+          + '<button onclick="dismissAlert(\''+safeSig+'\')" title="Masquer cette alerte" style="background:white;border:1px solid '+c.border+';border-radius:6px;padding:4px 9px;cursor:pointer;font-size:14px;color:'+c.color+';font-family:inherit;line-height:1">&times;</button>'
+          + '</div></div>';
       });
       html += '</div></div>';
       overviewPreview.innerHTML = html;
@@ -1467,7 +1500,13 @@ async function renderCoachView(){
       alerts.forEach(function(a) {
         const c = colorMap[a.color];
         const safeName = (a.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:' + c.bg + ';border:1px solid ' + c.border + ';border-radius:8px;font-size:13px"><span><strong style="color:' + c.color + '">' + a.name + '</strong> <span style="color:var(--text-muted)">·</span> ' + a.msg + '</span><button onclick="showCoachCarnet(\'' + a.email + '\',\'' + safeName + '\')" style="background:white;border:1px solid ' + c.border + ';border-radius:6px;padding:4px 12px;cursor:pointer;font-size:11px;color:' + c.color + ';font-family:inherit;font-weight:600">Voir →</button></div>';
+        const safeSig = (a.signature || '').replace(/'/g, "\\'");
+        html += '<div data-alert-sig="' + safeSig + '" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:' + c.bg + ';border:1px solid ' + c.border + ';border-radius:8px;font-size:13px;gap:8px">'
+          + '<span style="flex:1;min-width:0"><strong style="color:' + c.color + '">' + a.name + '</strong> <span style="color:var(--text-muted)">·</span> ' + a.msg + '</span>'
+          + '<div style="display:flex;gap:6px;flex-shrink:0">'
+          + '<button onclick="showCoachCarnet(\'' + a.email + '\',\'' + safeName + '\')" style="background:white;border:1px solid ' + c.border + ';border-radius:6px;padding:4px 12px;cursor:pointer;font-size:11px;color:' + c.color + ';font-family:inherit;font-weight:600">Voir →</button>'
+          + '<button onclick="dismissAlert(\'' + safeSig + '\')" title="Masquer cette alerte" style="background:white;border:1px solid ' + c.border + ';border-radius:6px;padding:4px 9px;cursor:pointer;font-size:14px;color:' + c.color + ';font-family:inherit;line-height:1">&times;</button>'
+          + '</div></div>';
       });
       html += '</div></div>';
       alertsEl.innerHTML = html;
@@ -1659,6 +1698,77 @@ function searchCoach(query) {
     const text = r.textContent.toLowerCase();
     r.style.display = (!q || text.includes(q)) ? '' : 'none';
   });
+}
+
+async function dismissAlert(signature) {
+  if (!signature || !state.user || !state.user.email) return;
+  try {
+    const { error } = await sb.from('dismissed_alerts').insert({
+      coach_email: state.user.email,
+      alert_signature: signature
+    });
+    if (error && error.code !== '23505') { // 23505 = doublon, on ignore
+      throw error;
+    }
+    
+    // Retirer toutes les alertes avec cette signature du DOM
+    document.querySelectorAll('[data-alert-sig="' + signature.replace(/"/g, '\\"') + '"]').forEach(el => {
+      el.style.transition = 'opacity .2s';
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 200);
+    });
+    
+    // Mettre à jour le set en mémoire
+    if (window._dismissedAlertSignatures) {
+      window._dismissedAlertSignatures.add(signature);
+    }
+    
+    // Décrémenter le badge alertes
+    const badge = document.getElementById('alertsBadge');
+    if (badge && badge.textContent) {
+      const n = parseInt(badge.textContent) - 1;
+      if (n <= 0) {
+        badge.style.display = 'none';
+      } else {
+        badge.textContent = n;
+      }
+    }
+    
+    // Mettre à jour le compteur dans le titre du tabAlerts ("Alertes à traiter (X)")
+    const alertsEl = document.getElementById('coachAlertsBlock');
+    if (alertsEl) {
+      const titleEl = alertsEl.querySelector('div[style*="text-transform:uppercase"]');
+      if (titleEl && titleEl.textContent.includes('Alertes à traiter')) {
+        const remaining = alertsEl.querySelectorAll('[data-alert-sig]').length - 1;
+        if (remaining <= 0) {
+          alertsEl.innerHTML = '';
+        } else {
+          titleEl.innerHTML = '&#128276; Alertes à traiter (' + remaining + ')';
+        }
+      }
+    }
+    
+    // Mettre à jour le compteur dans l'aperçu "Voir les X →"
+    const overviewPreview = document.getElementById('overviewAlertsPreview');
+    if (overviewPreview) {
+      const seeAll = overviewPreview.querySelector('div[onclick*="switchCoachTab"]');
+      if (seeAll) {
+        const remainingTotal = (window._dismissedAlertSignatures ? 
+          [...document.querySelectorAll('#coachAlertsBlock [data-alert-sig]')].length : 0);
+        if (remainingTotal > 3) {
+          seeAll.innerHTML = 'Voir les ' + remainingTotal + ' →';
+        } else if (remainingTotal === 0) {
+          // Plus d'alertes : afficher le message "tout va bien"
+          overviewPreview.innerHTML = '<div style="background:var(--green-light);border:1px solid #b8e0c8;border-radius:12px;padding:14px 18px;font-size:13px;color:#0a4a3a"><strong style="font-weight:600">&#10003; Tout va bien !</strong> Aucune alerte à traiter pour le moment.</div>';
+        } else {
+          seeAll.style.display = 'none';
+        }
+      }
+    }
+  } catch (e) {
+    alert('Erreur lors de la suppression : ' + e.message);
+    console.error('dismissAlert:', e);
+  }
 }
 
 function switchCoachTab(tabName){
