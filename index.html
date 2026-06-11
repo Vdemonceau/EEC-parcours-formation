@@ -1451,22 +1451,8 @@ async function renderCoachView(){
       + '</div></div>';
   }
 
-  // Remplir le bloc alertes complet (tabAlerts)
+  // Remplir le bloc alertes complet (tabAlerts) — réutilise les alertes déjà calculées plus haut
   if (alertsEl) {
-    const alerts = [];
-    const twoWeeksAgo = new Date(); twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-    const currentWeekStart = getCurrentWeekStart();
-    students.forEach(function(s) {
-      if (s.progress > 0 && (!s.lastPulse || new Date(s.lastPulse.week_start) < twoWeeksAgo)) {
-        alerts.push({ email: s.email, name: s.name, msg: "pas de pulse depuis 2+ semaines", color: "danger" });
-      }
-      if (s.lastPulse && s.lastPulse.motivation && s.lastPulse.motivation < 5 && s.lastPulse.week_start === currentWeekStart) {
-        alerts.push({ email: s.email, name: s.name, msg: "motivation " + s.lastPulse.motivation + "/10 cette semaine", color: "warning" });
-      }
-      if (s.lastPulse && s.lastPulse.coach_question && !s.lastPulse.coach_question_answered) {
-        alerts.push({ email: s.email, name: s.name, msg: "a posé une question dans son pulse", color: "info" });
-      }
-    });
     if (alerts.length === 0) {
       alertsEl.innerHTML = '';
     } else {
