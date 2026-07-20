@@ -433,7 +433,7 @@ const SUPABASE_URL='https://lumkeksqyfowqbkcmncc.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1bWtla3NxeWZvd3Fia2NtbmNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNzM2NTEsImV4cCI6MjA5Mjg0OTY1MX0.k8oBgnpvZ3zK8kzb2ZZGikzX7WTOYknn8KVj534JfK4';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const FICHES={comet:'https://lumkeksqyfowqbkcmncc.supabase.co/storage/v1/object/public/fiches/comet.pdf.pdf',fursac:'https://lumkeksqyfowqbkcmncc.supabase.co/storage/v1/object/public/fiches/fursac.pdf.pdf',alterfood:'https://lumkeksqyfowqbkcmncc.supabase.co/storage/v1/object/public/fiches/Fiche_Alterfood.pdf'};
-const COACH_EMAILS=['valentin.demonceau@eec-paris.com','kenza@eec-paris.com','nathalie.ciaraldi@eec-paris.com'];
+const COACH_EMAILS=['valentin.demonceau@eec-paris.com','kenza@eec-paris.com','nathalie.ciaraldi@eec-paris.com','maxence.forny@eec-paris.com'];
 
 async function openRelanceModal(){
   if(!state.user||!isCoach(state.user.email)){alert('Action réservée aux coachs.');return;}
