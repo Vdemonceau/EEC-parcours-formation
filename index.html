@@ -1358,7 +1358,8 @@ async function renderCoachView(){
   const alertsBadge = document.getElementById('alertsBadge');
   const overviewPreview = document.getElementById('overviewAlertsPreview');
   
-  // Calcul des alertes avec signatures uniques (pour permettre la suppression définitive)
+  // Calcul des alertes avec signatures + filtres intelligents
+  // 1. Charger les alertes supprimées définitivement
   let dismissedSignatures = new Set();
   try {
     const { data: dismissed } = await sb.from('dismissed_alerts')
@@ -1370,54 +1371,91 @@ async function renderCoachView(){
   }
   window._dismissedAlertSignatures = dismissedSignatures;
   
+  // 2. Charger les alternants contactés récemment (masqués pour 14j)
+  let contactedRecently = new Set();
+  try {
+    const { data: contacts } = await sb.from('coach_contacts')
+      .select('student_email')
+      .gt('expires_at', new Date().toISOString());
+    contactedRecently = new Set((contacts || []).map(c => c.student_email));
+  } catch (e) {
+    console.warn('Chargement coach_contacts:', e);
+  }
+  window._contactedRecently = contactedRecently;
+  
   const allAlerts = [];
   const now = new Date();
-  const twoWeeksAgo = new Date(); twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
   const currentWeekStart = getCurrentWeekStart();
   
   students.forEach(function(s) {
-    // Alerte "pas de pulse depuis 2+ semaines"
+    // On ne génère AUCUNE alerte pour les alternants contactés récemment
+    if (contactedRecently.has(s.email)) return;
+    
+    // === Alerte "pas de pulse" avec CADENCE 14j / 30j puis STOP ===
     if (s.createdAt) {
       const inscritDate = new Date(s.createdAt);
-      const inscritDepuis14j = inscritDate <= twoWeeksAgo;
-      if (inscritDepuis14j) {
-        const referenceDate = s.lastPulse ? new Date(s.lastPulse.week_start) : inscritDate;
-        if (referenceDate < twoWeeksAgo) {
-          const joursSans = Math.floor((now - referenceDate) / 86400000);
-          // Signature évolutive : si le nombre de jours change, l'alerte réapparaît
-          const signature = 'no_pulse:' + s.email + ':' + joursSans;
-          allAlerts.push({ 
-            email: s.email, 
-            name: s.name, 
-            msg: s.lastPulse ? "pas de pulse depuis " + joursSans + " jours" : "inscrit depuis " + joursSans + " jours sans aucun pulse", 
-            color: "danger",
-            signature: signature
-          });
-        }
+      const referenceDate = s.lastPulse ? new Date(s.lastPulse.week_start) : inscritDate;
+      const joursSans = Math.floor((now - referenceDate) / 86400000);
+      
+      // Cadence : alerte à J+14 (14 à 20 jours) et à J+30 (30 à 36 jours), sinon rien
+      let palier = null;
+      if (joursSans >= 14 && joursSans <= 20) palier = 14;
+      else if (joursSans >= 30 && joursSans <= 36) palier = 30;
+      
+      if (palier !== null) {
+        // Signature basée sur le palier (pas sur le nombre de jours exact)
+        // → 1 alerte à J+14 puis silence puis 1 alerte à J+30 puis silence définitif
+        const signature = 'no_pulse:' + s.email + ':palier_' + palier;
+        const urgence = palier === 30 ? 'urgent' : 'medium';
+        const color = palier === 30 ? 'danger' : 'warning';
+        allAlerts.push({ 
+          email: s.email, 
+          name: s.name, 
+          msg: s.lastPulse ? "pas de pulse depuis " + joursSans + " jours" : "inscrit depuis " + joursSans + " jours sans aucun pulse", 
+          color: color,
+          urgence: urgence,
+          signature: signature
+        });
       }
     }
     
-    // Alerte motivation basse cette semaine
-    if (s.lastPulse && s.lastPulse.motivation && s.lastPulse.motivation < 5 && s.lastPulse.week_start === currentWeekStart) {
-      const signature = 'low_motiv:' + s.email + ':' + s.lastPulse.week_start + ':' + s.lastPulse.motivation;
-      allAlerts.push({ 
-        email: s.email, 
-        name: s.name, 
-        msg: "motivation " + s.lastPulse.motivation + "/10 cette semaine", 
-        color: "warning",
-        signature: signature
-      });
+    // === Alerte motivation basse cette semaine (segmentée par niveau) ===
+    if (s.lastPulse && s.lastPulse.motivation && s.lastPulse.week_start === currentWeekStart) {
+      const motiv = s.lastPulse.motivation;
+      if (motiv < 3) {
+        // Motivation très basse = urgent
+        const signature = 'low_motiv:' + s.email + ':' + s.lastPulse.week_start + ':' + motiv;
+        allAlerts.push({ 
+          email: s.email, 
+          name: s.name, 
+          msg: "motivation très basse : " + motiv + "/10 cette semaine", 
+          color: "danger",
+          urgence: 'urgent',
+          signature: signature
+        });
+      } else if (motiv < 5) {
+        // Motivation basse = à surveiller
+        const signature = 'low_motiv:' + s.email + ':' + s.lastPulse.week_start + ':' + motiv;
+        allAlerts.push({ 
+          email: s.email, 
+          name: s.name, 
+          msg: "motivation " + motiv + "/10 cette semaine", 
+          color: "warning",
+          urgence: 'low',
+          signature: signature
+        });
+      }
     }
     
-    // Alerte question coach non traitée
+    // === Alerte question coach non traitée (toujours prioritaire) ===
     if (s.lastPulse && s.lastPulse.coach_question && !s.lastPulse.coach_question_answered) {
-      // Signature liée à l'id du pulse pour qu'une nouvelle question génère une nouvelle alerte
       const signature = 'question:' + s.email + ':' + (s.lastPulse.id || s.lastPulse.week_start);
       allAlerts.push({ 
         email: s.email, 
         name: s.name, 
         msg: "a posé une question dans son pulse", 
         color: "info",
+        urgence: 'question',
         signature: signature
       });
     }
@@ -1456,10 +1494,11 @@ async function renderCoachView(){
         const c = colorMap[a.color];
         const safeName = (a.name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         const safeSig = (a.signature || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        html += '<div data-alert-sig="'+safeSig+'" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:'+c.bg+';border:1px solid '+c.border+';border-radius:8px;font-size:13px;gap:8px">'
+        html += '<div data-alert-sig="'+safeSig+'" data-alert-email="'+a.email+'" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:'+c.bg+';border:1px solid '+c.border+';border-radius:8px;font-size:13px;gap:8px">'
           + '<span style="flex:1;min-width:0"><strong style="color:'+c.color+'">'+a.name+'</strong> <span style="color:var(--text-muted)">·</span> '+a.msg+'</span>'
-          + '<div style="display:flex;gap:6px;flex-shrink:0">'
+          + '<div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">'
           + '<button onclick="showCoachCarnet(\''+a.email+'\',\''+safeName+'\')" style="background:white;border:1px solid '+c.border+';border-radius:6px;padding:4px 12px;cursor:pointer;font-size:11px;color:'+c.color+';font-family:inherit;font-weight:600">Voir &rarr;</button>'
+          + '<button onclick="markContacted(\''+a.email+'\',\''+safeName+'\')" title="Masquer toutes les alertes de cet alternant pendant 14 jours" style="background:white;border:1px solid '+c.border+';border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;color:'+c.color+';font-family:inherit;font-weight:600">Contact&eacute; &check;</button>'
           + '<button onclick="dismissAlert(\''+safeSig+'\')" title="Masquer cette alerte" style="background:white;border:1px solid '+c.border+';border-radius:6px;padding:4px 9px;cursor:pointer;font-size:14px;color:'+c.color+';font-family:inherit;line-height:1">&times;</button>'
           + '</div></div>';
       });
@@ -1484,7 +1523,7 @@ async function renderCoachView(){
       + '</div></div>';
   }
 
-  // Remplir le bloc alertes complet (tabAlerts) — réutilise les alertes déjà calculées plus haut
+  // Remplir le bloc alertes complet (tabAlerts) — segmentation par urgence
   if (alertsEl) {
     if (alerts.length === 0) {
       alertsEl.innerHTML = '';
@@ -1494,21 +1533,54 @@ async function renderCoachView(){
         warning: { bg: '#fff8e8', color: '#b07800', border: '#f0d090' },
         info: { bg: 'var(--cyan-light)', color: 'var(--navy)', border: 'var(--cyan)' }
       };
-      let html = '<div style="background:white;border:1px solid var(--border);border-radius:12px;padding:16px 20px">';
-      html += '<div style="font-family:\'Gopher\',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--navy);margin-bottom:12px">&#128276; Alertes à traiter (' + alerts.length + ')</div>';
-      html += '<div style="display:flex;flex-direction:column;gap:6px">';
-      alerts.forEach(function(a) {
+      
+      // Segmenter par urgence
+      const urgent = alerts.filter(a => a.urgence === 'urgent');
+      const medium = alerts.filter(a => a.urgence === 'medium');
+      const low = alerts.filter(a => a.urgence === 'low');
+      const questions = alerts.filter(a => a.urgence === 'question');
+      
+      // Fonction pour rendre une alerte
+      const renderAlert = function(a) {
         const c = colorMap[a.color];
         const safeName = (a.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
         const safeSig = (a.signature || '').replace(/'/g, "\\'");
-        html += '<div data-alert-sig="' + safeSig + '" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:' + c.bg + ';border:1px solid ' + c.border + ';border-radius:8px;font-size:13px;gap:8px">'
+        return '<div data-alert-sig="' + safeSig + '" data-alert-email="' + a.email + '" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:' + c.bg + ';border:1px solid ' + c.border + ';border-radius:8px;font-size:13px;gap:8px">'
           + '<span style="flex:1;min-width:0"><strong style="color:' + c.color + '">' + a.name + '</strong> <span style="color:var(--text-muted)">·</span> ' + a.msg + '</span>'
-          + '<div style="display:flex;gap:6px;flex-shrink:0">'
+          + '<div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">'
           + '<button onclick="showCoachCarnet(\'' + a.email + '\',\'' + safeName + '\')" style="background:white;border:1px solid ' + c.border + ';border-radius:6px;padding:4px 12px;cursor:pointer;font-size:11px;color:' + c.color + ';font-family:inherit;font-weight:600">Voir →</button>'
+          + '<button onclick="markContacted(\'' + a.email + '\',\'' + safeName + '\')" title="Masquer toutes les alertes de cet alternant pendant 14 jours" style="background:white;border:1px solid ' + c.border + ';border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;color:' + c.color + ';font-family:inherit;font-weight:600">Contacté ✓</button>'
           + '<button onclick="dismissAlert(\'' + safeSig + '\')" title="Masquer cette alerte" style="background:white;border:1px solid ' + c.border + ';border-radius:6px;padding:4px 9px;cursor:pointer;font-size:14px;color:' + c.color + ';font-family:inherit;line-height:1">&times;</button>'
           + '</div></div>';
-      });
-      html += '</div></div>';
+      };
+      
+      // Fonction pour rendre une section
+      const renderSection = function(title, icon, items, badgeColor) {
+        if (items.length === 0) return '';
+        return '<div style="background:white;border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:12px">'
+          + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+          + '<div style="font-family:\'Gopher\',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--navy)">' + icon + ' ' + title + ' <span style="background:' + badgeColor + ';color:white;padding:1px 8px;border-radius:10px;font-size:11px;margin-left:4px">' + items.length + '</span></div>'
+          + '<button onclick="dismissAllInSection(\'' + title.replace(/'/g, "\\'") + '\')" data-section-title="' + title + '" style="background:var(--off-white);border:1px solid var(--border);border-radius:6px;padding:4px 12px;cursor:pointer;font-size:11px;color:var(--text-muted);font-family:inherit">Tout masquer</button>'
+          + '</div>'
+          + '<div style="display:flex;flex-direction:column;gap:6px">' + items.map(renderAlert).join('') + '</div>'
+          + '</div>';
+      };
+      
+      let html = '';
+      
+      // Barre d'actions globales
+      html += '<div style="background:var(--off-white);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'
+        + '<div style="font-size:12px;color:var(--text-muted)"><strong style="color:var(--navy)">' + alerts.length + '</strong> alerte' + (alerts.length > 1 ? 's' : '') + ' à traiter'
+        + (contactedRecently.size > 0 ? ' · <span title="Alternants contactés récemment (masqués 14j)" style="color:var(--navy)">' + contactedRecently.size + ' contact' + (contactedRecently.size > 1 ? 's' : '') + ' en cours</span>' : '')
+        + '</div>'
+        + '<button onclick="dismissAllVisibleAlerts()" style="background:white;border:1px solid var(--border);border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px;color:var(--navy);font-family:inherit;font-weight:600">Tout masquer (' + alerts.length + ')</button>'
+        + '</div>';
+      
+      html += renderSection('Urgent', '&#128308;', urgent, '#e74c3c');
+      html += renderSection('Questions coach', '&#128172;', questions, '#0d155c');
+      html += renderSection('À traiter', '&#128992;', medium, '#e67e22');
+      html += renderSection('À surveiller', '&#128993;', low, '#f0a000');
+      
       alertsEl.innerHTML = html;
     }
   }
@@ -1768,6 +1840,102 @@ async function dismissAlert(signature) {
   } catch (e) {
     alert('Erreur lors de la suppression : ' + e.message);
     console.error('dismissAlert:', e);
+  }
+}
+
+async function markContacted(email, name) {
+  if (!email || !state.user || !state.user.email) return;
+  const displayName = (name || email).replace(/&quot;/g, '"');
+  if (!confirm('Marquer ' + displayName + ' comme contacté ?\n\nToutes les alertes le concernant seront masquées pendant 14 jours.')) return;
+  
+  try {
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 14);
+    
+    const { error } = await sb.from('coach_contacts').insert({
+      coach_email: state.user.email,
+      student_email: email,
+      expires_at: expiresAt.toISOString()
+    });
+    if (error) throw error;
+    
+    // Retirer visuellement toutes les alertes de cet alternant du DOM
+    document.querySelectorAll('[data-alert-email="' + email + '"]').forEach(el => {
+      el.style.transition = 'opacity .2s';
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 200);
+    });
+    
+    // Mettre à jour le set en mémoire
+    if (window._contactedRecently) {
+      window._contactedRecently.add(email);
+    }
+    
+    // Refresh la vue coach pour recalculer les compteurs et sections
+    setTimeout(() => renderCoachView(), 300);
+  } catch (e) {
+    alert('Erreur : ' + e.message);
+    console.error('markContacted:', e);
+  }
+}
+
+async function dismissAllInSection(sectionTitle) {
+  const btn = document.querySelector('[data-section-title="' + sectionTitle + '"]');
+  if (!btn) return;
+  const section = btn.closest('div[style*="background:white"]');
+  if (!section) return;
+  
+  const alertDivs = section.querySelectorAll('[data-alert-sig]');
+  if (alertDivs.length === 0) return;
+  
+  if (!confirm('Masquer toutes les alertes de la section "' + sectionTitle + '" (' + alertDivs.length + ') ?')) return;
+  
+  const signatures = Array.from(alertDivs).map(el => el.getAttribute('data-alert-sig'));
+  
+  try {
+    // Insert en batch
+    const inserts = signatures.map(sig => ({
+      coach_email: state.user.email,
+      alert_signature: sig
+    }));
+    await sb.from('dismissed_alerts').insert(inserts);
+    
+    // Mise à jour du set en mémoire
+    signatures.forEach(sig => {
+      if (window._dismissedAlertSignatures) window._dismissedAlertSignatures.add(sig);
+    });
+    
+    // Refresh la vue
+    renderCoachView();
+  } catch (e) {
+    alert('Erreur : ' + e.message);
+    console.error('dismissAllInSection:', e);
+  }
+}
+
+async function dismissAllVisibleAlerts() {
+  const alertDivs = document.querySelectorAll('#coachAlertsBlock [data-alert-sig]');
+  if (alertDivs.length === 0) return;
+  
+  if (!confirm('Masquer les ' + alertDivs.length + ' alertes actuellement visibles ?\n\nElles ne reviendront pas tant que la situation ne change pas.')) return;
+  
+  const signatures = Array.from(alertDivs).map(el => el.getAttribute('data-alert-sig'));
+  
+  try {
+    const inserts = signatures.map(sig => ({
+      coach_email: state.user.email,
+      alert_signature: sig
+    }));
+    await sb.from('dismissed_alerts').insert(inserts);
+    
+    signatures.forEach(sig => {
+      if (window._dismissedAlertSignatures) window._dismissedAlertSignatures.add(sig);
+    });
+    
+    renderCoachView();
+  } catch (e) {
+    alert('Erreur : ' + e.message);
+    console.error('dismissAllVisibleAlerts:', e);
   }
 }
 
